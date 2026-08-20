@@ -330,4 +330,24 @@ assert instalar.actualizar() == 1
 assert open(os.path.join(destino, "recolector.py")).read() == "version nueva", \
     "si falla la descarga, no se toca nada"
 
+# ── el acceso de Windows ────────────────────────────────────────────────────
+# No se puede correr Windows desde acá, asi que al menos se comprueba QUE se le pide
+# al sistema: que el acceso apunte a pythonw.exe (el Python sin consola) y no a
+# python.exe, que es lo que dejaba una ventana negra abierta.
+comandos = []
+instalar.subprocess.run = lambda orden, **k: comandos.append(" ".join(orden))
+instalar.pythonw = lambda: r"C:\Python\pythonw.exe"
+tmp_esc = tempfile.mkdtemp()
+instalar._acceso_windows(tmp_esc)          # sin PowerShell real, cae al .bat, pero el
+ps = " ".join(comandos)                    # comando que se intento queda registrado
+assert "pythonw.exe" in ps, "el acceso de Windows tiene que usar el Python sin consola"
+assert "servidor.py --fondo" in ps, "y arrancar el servidor desprendido"
+assert "icono.ico" in ps, "con el icono del robot"
+
+# Sin pythonw.exe (instalacion rara) tiene que caer al .bat, no quedarse sin acceso.
+comandos.clear()
+instalar.pythonw = lambda: None
+instalar._acceso_windows(tmp_esc)
+assert "Abrir panel.bat" in " ".join(comandos), "sin pythonw, el acceso apunta al .bat"
+
 print("OK — todos los checks pasaron")

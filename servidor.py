@@ -828,34 +828,68 @@ def abrir_puerto(desde, intentos):
     return None, None
 
 
+def panel_ya_abierto():
+    """El puerto donde ya hay un panel de estos escuchando, o None.
+
+    Evita que el segundo doble clic levante un servidor más. Se pregunta por /latido
+    y no por el panel: cualquier cosa puede estar sirviendo un HTML en ese puerto,
+    pero /latido lo contesta este servidor y nadie más.
+    """
+    import urllib.request
+    for puerto in range(PUERTO, PUERTO + 20):
+        try:
+            with urllib.request.urlopen(
+                    f"http://127.0.0.1:{puerto}/latido", timeout=1) as r:
+                if r.status == 204:
+                    return puerto
+        except Exception:                  # noqa: BLE001 — cerrado o ajeno: sigo
+            continue
+    return None
+
+
 def al_fondo():
     """Se desprende de quien lo lanzó y sigue vivo por su cuenta.
 
-    Con `nohup ... &` no alcanza en macOS: cuando la app que hizo el doble clic
-    termina, LaunchServices se lleva puestos los procesos que quedaron colgando de
-    ella, y el panel moría antes de atender el primer pedido.
+    En macOS `nohup ... &` no alcanza: cuando la app que hizo el doble clic termina,
+    LaunchServices se lleva puestos los procesos que quedaron colgando de ella, y el
+    panel moría antes de atender el primer pedido. El doble fork con `setsid` en el
+    medio es la receta de siempre: el primer fork devuelve el control enseguida,
+    `setsid` abre una sesión nueva sin terminal de la que depender, y el segundo evita
+    volver a agarrar una.
 
-    El doble fork con `setsid` en el medio es la receta de siempre para esto: el
-    primer fork devuelve el control enseguida, `setsid` abre una sesión nueva sin
-    terminal de la que depender, y el segundo evita volver a agarrar una.
+    En Windows no hay fork ni setsid, y tampoco hacen falta: el acceso directo llama a
+    `pythonw.exe`, que es el mismo Python pero sin consola. Ahí lo único que hay que
+    resolver es que la salida no se pierda en el aire.
     """
-    if os.fork() > 0:
-        os._exit(0)
-    os.setsid()
-    if os.fork() > 0:
-        os._exit(0)
+    if os.name != "nt":
+        if os.fork() > 0:
+            os._exit(0)
+        os.setsid()
+        if os.fork() > 0:
+            os._exit(0)
 
-    # Sin terminal, lo que se imprima tiene que ir a algún lado o se pierde: si algo
-    # falla, el log es la única pista que le queda a la persona.
-    log = open(os.path.join(AQUI, "panel.log"), "a", buffering=1)
-    os.dup2(log.fileno(), sys.stdout.fileno())
-    os.dup2(log.fileno(), sys.stderr.fileno())
-    with open(os.devnull) as nada:
-        os.dup2(nada.fileno(), sys.stdin.fileno())
+    # Sin consola, lo que se imprima se pierde: si algo falla, el log es la única
+    # pista que le queda a la persona. Se escribe por descriptor y además se cambian
+    # sys.stdout/sys.stderr, porque bajo pythonw.exe pueden venir en None.
+    log = open(os.path.join(AQUI, "panel.log"), "a", buffering=1, encoding="utf-8")
+    for fd in (1, 2):
+        try:
+            os.dup2(log.fileno(), fd)
+        except OSError:
+            pass
+    sys.stdout = sys.stderr = log
 
 
 def main():
     if "--fondo" in sys.argv:
+        # Dos doble clics seguidos no pueden dejar dos servidores. Se chequea acá y no
+        # en el lanzador para que valga igual en las dos plataformas: en Windows el
+        # acceso directo llama a pythonw.exe directo, sin script en el medio donde
+        # poner esta lógica.
+        ya = panel_ya_abierto()
+        if ya:
+            webbrowser.open(f"http://127.0.0.1:{ya}/panel.html")
+            return
         al_fondo()
     # Si la persona eligió el puerto a mano, se respeta y no se busca otro: pidió ESE.
     elegido_a_mano = bool(os.environ.get("PUERTO"))

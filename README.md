@@ -178,6 +178,8 @@ explicado dentro del instalador.
 
 Doble clic en el **robot del Escritorio**. El panel se abre en el navegador y el servidor queda en segundo plano, sin ventanas: se apaga solo unos minutos después de que cerrás la pestaña.
 
+> En Windows el acceso usa `pythonw.exe`, que es el mismo Python sin ventana de consola.
+>
 > Si preferís verlo con una ventana de terminal —para diagnosticar algo— también está `Abrir panel.command` / `Abrir panel.bat` en la carpeta.
 
 | Para... | Hacé |

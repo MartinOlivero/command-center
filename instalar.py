@@ -868,15 +868,35 @@ osascript -e 'display alert "No pude abrir el panel" message "Mirá el archivo p
     return app
 
 
+def pythonw():
+    """El Python sin consola de Windows, si está. Es el equivalente a no abrir Terminal.
+
+    `python.exe` abre una ventana negra que hay que dejar abierta; `pythonw.exe` es el
+    mismo intérprete sin esa ventana, y viene al lado en toda instalación normal.
+    """
+    if os.name != "nt":
+        return None
+    candidato = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    return candidato if os.path.exists(candidato) else None
+
+
 def _acceso_windows(escritorio):
     """Un .lnk, que es lo único que admite ícono en Windows (un .bat no).
 
-    Si la política de PowerShell lo bloquea —pasa en equipos corporativos— cae a un
-    .bat plano: sin ícono, pero abre el panel igual. Mejor eso que nada en el Escritorio.
+    Apunta a pythonw.exe para que no quede una consola abierta. Si no aparece —una
+    instalación rara, o Python desde la Microsoft Store— cae al .bat de siempre: con
+    ventana, pero funcionando. Y si la política de PowerShell bloquea la creación del
+    acceso —pasa en equipos corporativos— cae a un .bat en el Escritorio: sin ícono,
+    pero abre el panel igual. Mejor eso que nada.
     """
     destino = os.path.join(escritorio, f"{ACCESO}.lnk")
+    sin_consola = pythonw()
+    if sin_consola:
+        blanco, args = sin_consola, '$s.Arguments="servidor.py --fondo";'
+    else:
+        blanco, args = os.path.join(AQUI, "Abrir panel.bat"), ""
     ps = (f'$s=(New-Object -COM WScript.Shell).CreateShortcut("{destino}");'
-          f'$s.TargetPath="{os.path.join(AQUI, "Abrir panel.bat")}";'
+          f'$s.TargetPath="{blanco}";{args}'
           f'$s.WorkingDirectory="{AQUI}";'
           f'$s.IconLocation="{os.path.join(AQUI, "icono.ico")}";$s.Save()')
     try:
