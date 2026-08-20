@@ -1,0 +1,31 @@
+# ── SECRETOS: esto no se sube nunca ──────────────────────────────────────────
+# El .env tiene tokens de Meta que NO VENCEN. Uno filtrado en un repo público es
+# acceso permanente a la cuenta de Instagram y Facebook de alguien, hasta que lo
+# revoque a mano — y no se va a enterar de que tiene que hacerlo.
+.env
+.env.backup
+.env.local
+*.key
+
+# ── DATOS DE LA PERSONA: tampoco ─────────────────────────────────────────────
+# El histórico es lo único irrecuperable del panel (los datos de días pasados no
+# se pueden volver a pedir a la API). Respaldalo, pero fuera del repo.
+historico.jsonl
+# Comentarios: texto y @ de personas reales. Privacidad ajena.
+comentarios.json
+# De quién es esta instalación: nombre, handle, competidores, palabras clave.
+config.json
+
+# ── GENERADOS EN CADA CORRIDA ────────────────────────────────────────────────
+panel.html
+analisis.json
+ideas.json
+duraciones.json
+piezas/
+piezas-ia/
+__pycache__/
+*.pyc
+
+# ── RUIDO DEL SISTEMA ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

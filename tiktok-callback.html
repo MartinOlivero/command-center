@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autorización TikTok</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         background: #05070a; color: #e8f4f8; font-family: system-ui, sans-serif; padding: 24px }
+  .caja { max-width: 640px; width: 100% }
+  h1 { font-size: 20px; margin: 0 0 6px }
+  p { color: #8fa3b3; font-size: 14px; margin: 0 0 18px }
+  code { display: block; padding: 16px; border-radius: 8px; word-break: break-all;
+         background: #0b1118; border: 1px solid rgba(34,211,238,.25); color: #22d3ee;
+         font-family: ui-monospace, Menlo, monospace; font-size: 13.5px; line-height: 1.5 }
+  button { margin-top: 12px; padding: 10px 18px; border-radius: 8px; cursor: pointer;
+           border: 0; background: #22d3ee; color: #04222a; font-weight: 700; font-size: 14px }
+  .err { color: #fb7185 }
+</style>
+</head>
+<body>
+<div class="caja">
+  <h1>Autorización de TikTok</h1>
+  <p>Copiá este código y pegalo en la terminal. Caduca en pocos minutos.</p>
+  <code id="code">…</code>
+  <button id="btn">Copiar</button>
+</div>
+<script>
+// Solo muestra el 'code' que TikTok devuelve en la URL. No lo manda a ningun lado.
+const p = new URLSearchParams(location.search);
+const c = p.get('code');
+const el = document.getElementById('code');
+if (c) {
+  el.textContent = decodeURIComponent(c);
+} else {
+  el.className = 'err';
+  el.textContent = p.get('error_description') || p.get('error') || 'No llegó ningún código en la URL.';
+}
+document.getElementById('btn').onclick = () => navigator.clipboard.writeText(el.textContent);
+</script>
+</body>
+</html>

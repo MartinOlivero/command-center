@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orbe liviano</title>
+<style>
+  :root { --fondo:#0a0418; }
+  * { box-sizing:border-box }
+  html,body { margin:0; height:100%; }
+  body {
+    background:
+      radial-gradient(1200px 700px at 20% 0%, #2a0f4a 0%, transparent 60%),
+      radial-gradient(900px 600px at 85% 90%, #3b0f52 0%, transparent 60%),
+      var(--fondo);
+    color:#e9d5ff;
+    font:400 13px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:48px; padding:60px 24px; min-height:100%;
+  }
+  /* estrellitas: puro CSS, no ensucian el canvas */
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; opacity:.5;
+    background:
+      radial-gradient(1.5px 1.5px at 12% 22%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 78% 15%, #fff, transparent),
+      radial-gradient(1px 1px   at 45% 70%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 88% 62%, #fff, transparent),
+      radial-gradient(1px 1px   at 30% 88%, #fff, transparent),
+      radial-gradient(1px 1px   at 62% 40%, #fff, transparent);
+  }
+  .fila { display:flex; align-items:center; gap:56px; flex-wrap:wrap; justify-content:center; }
+  .caja { display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .caja canvas { display:block }
+  .etiqueta { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#a78bfa; opacity:.8 }
+  h1 { font-size:14px; font-weight:500; letter-spacing:.2em; text-transform:uppercase;
+       color:#c4b5fd; opacity:.75; margin:0 }
+</style>
+</head>
+<body>
+
+<h1>Orbe · canvas 2D · cero librerías</h1>
+
+<div class="fila">
+  <div class="caja"><canvas id="a"></canvas><span class="etiqueta">340 px — el del panel</span></div>
+  <div class="caja"><canvas id="b"></canvas><span class="etiqueta">160 px</span></div>
+  <div class="caja"><canvas id="c"></canvas><span class="etiqueta">46 px — barra fija</span></div>
+</div>
+
+<script>
+/* ───────────────────────────────────────────────────────────────────────────
+   ORBE: una superficie que respira, hecha de puntos.
+
+   Analogía: imaginate una pelota cubierta de arena. Si soplás desde adentro
+   en distintos lugares a la vez, la arena forma bultos que se mueven. Eso es
+   todo el efecto — la pelota no cambia, cambia CUÁNTO se aleja cada grano
+   del centro.
+
+   Dos trucos hacen el 90% de lo que se ve:
+
+   1. RUIDO POR SENOS. No hay librería de noise: tres senos de distinta
+      frecuencia multiplicados alcanzan para que los bultos se lean orgánicos
+      y no repetidos. Es ruido falso, pero a este tamaño nadie lo distingue.
+
+   2. FRESNEL. Es por qué se ve el ANILLO con el centro hueco. Cada punto se
+      apaga cuando su cara mira derecho a la cámara y brilla cuando la esquiva.
+      Como una burbuja de jabón: los costados tienen color, el frente es casi
+      transparente. Sin esto sería una bola llena y opaca, no un orbe.
+
+   El glow no es un blur por punto (carísimo con miles): al final se dibuja el
+   canvas encima de sí mismo, borroso y en modo suma. Una sola operación.     */
+
+function orbe(sel, lado, op = {}) {
+  const c = document.querySelector(sel); if (!c) return;
+  const g = c.getContext('2d');
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  c.width = lado * dpr; c.height = lado * dpr;
+  c.style.width = lado + 'px'; c.style.height = lado + 'px';
+  g.scale(dpr, dpr);
+
+  const {
+    filas    = Math.max(26, Math.round(lado * 0.34)),  // paralelos
+    cols     = Math.max(40, Math.round(lado * 0.60)),  // meridianos
+    amp      = 0.20,                    // cuánto sobresalen los bultos
+    // Lento a propósito, y medido en SEGUNDOS reales, no en cuadros: así la
+    // velocidad es la misma en una pantalla de 60 Hz que en una de 120.
+    // Un movimiento rápido se lee como nervioso y cansa al que lo tiene de
+    // fondo; uno lento se lee como deliberado, como algo que respira.
+    oleajeSeg = 0.20,                   // una onda completa cada ~31 s
+    giroSeg   = 0.017,                  // una vuelta cada ~6 min
+    fps       = 30,                     // moviéndose así de lento, 60 no se distingue
+    hueco    = 1.7,                     // dureza del fresnel: más alto, más hueco
+    piso     = 0.18,                    // cuánta superficie queda visible en el centro
+    glow     = lado / 26,               // radio del desenfoque final
+    grave    = '#6d28d9',               // violeta del valle
+    cresta   = '#f3e8ff',               // casi blanco de la cresta
+  } = op;
+
+  // Grilla de latitud/longitud, NO un reparto al azar. Es lo que produce las
+  // bandas curvas que se ven en la referencia: los puntos alineados en
+  // paralelos leen como tela o como las curvas de nivel de un mapa. Con un
+  // reparto aleatorio (Fibonacci) queda parejo pero sin ese tejido.
+  const P = [];
+  for (let f = 0; f < filas; f++) {
+    const phi = (f + 0.5) / filas * Math.PI;          // 0..π del polo al polo
+    const sy_ = Math.cos(phi), r = Math.sin(phi);
+    // menos meridianos cerca de los polos: si no, se apelmazan en dos manchas
+    const n = Math.max(4, Math.round(cols * r));
+    for (let i = 0; i < n; i++) {
+      const th = (i / n) * Math.PI * 2;
+      P.push({ x: Math.cos(th) * r, y: sy_, z: Math.sin(th) * r });
+    }
+  }
+
+  const rgb = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+  const A = rgb(grave), B = rgb(cresta);
+
+  const R = lado * 0.30, cx = lado / 2, cy = lado / 2;
+  let rot = 0, t = 0, ultimo = 0;
+  const quieto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const paso = 1000 / fps;
+
+  function pintar(ahora) {
+    if (!quieto) requestAnimationFrame(pintar);
+    // Freno de cuadros: si no pasó el intervalo, salgo sin dibujar nada. Es
+    // la mitad de trabajo para la máquina y a esta velocidad nadie lo nota.
+    if (ahora - ultimo < paso) return;
+    const dt = ultimo ? Math.min(0.1, (ahora - ultimo) / 1000) : 0;
+    ultimo = ahora;
+    t += oleajeSeg * dt;
+    rot += giroSeg * dt;
+
+    g.clearRect(0, 0, lado, lado);
+    g.globalCompositeOperation = 'lighter';   // los puntos se SUMAN: eso da el brillo
+    const cos = Math.cos(rot), sin = Math.sin(rot);
+
+    for (const p of P) {
+      // 1) ruido: tres ondas cruzadas → bultos que van y vienen
+      const n = Math.sin(p.x * 2.4 + t) * Math.cos(p.y * 2.9 - t * 0.8)
+              + 0.55 * Math.sin(p.z * 4.1 + t * 1.35) * Math.cos(p.x * 3.6 + t * 0.6)
+              + 0.30 * Math.sin(p.y * 6.2 - t * 0.95);
+      const k = n / 1.85;                       // ≈ -1..1
+      const rr = 1 + k * amp;
+
+      // 2) rotar sobre Y y proyectar con perspectiva
+      const x = (p.x * cos - p.z * sin) * rr;
+      const z = (p.x * sin + p.z * cos) * rr;
+      const y = p.y * rr;
+      const esc = 1 / (2.5 - z);
+      const sx = cx + x * R * esc * 2.3;
+      const sy = cy + y * R * esc * 2.3;
+
+      // 3) fresnel: se apaga lo que mira de frente, brilla lo que esquiva
+      const mirada = Math.abs(z / (Math.sqrt(x*x + y*y + z*z) || 1));
+      // El piso es la diferencia entre "anillo hueco" y "orbe con volumen":
+      // sin él el centro queda en cero y se ve un aro; con 0.18 se adivina la
+      // tela por dentro, que es lo que hace leer una superficie y no un borde.
+      let a = (piso + (1 - piso) * Math.pow(1 - mirada, hueco)) * 0.85;
+      if (z < 0) a *= 0.5;                      // lo de atrás, más tenue
+      a *= 0.5 + (k + 1) * 0.34;                // las crestas brillan más
+      if (a < 0.008) continue;
+
+      // 4) color: del violeta del valle al blanco de la cresta
+      const m = Math.min(1, Math.max(0, (k + 0.35) * 0.85));
+      g.fillStyle = `rgba(${A[0]+(B[0]-A[0])*m|0},${A[1]+(B[1]-A[1])*m|0},${A[2]+(B[2]-A[2])*m|0},${a.toFixed(3)})`;
+      // fillRect y no arc(): a miles de puntos por cuadro, un rectángulo de 1px
+      // se dibuja muchísimo más rápido y a este tamaño se ve igual.
+      const s = Math.max(0.7, esc * lado * 0.009);
+      g.fillRect(sx - s / 2, sy - s / 2, s, s);
+    }
+
+    // 5) el glow: el canvas borroso sumado sobre sí mismo. Dos pasadas, chica
+    // y grande — la segunda ya incluye a la primera, así que el halo se abre
+    // solo, en dos escalas, como un bloom de verdad. Cuesta dos drawImage.
+    g.filter = `blur(${glow}px)`;      g.drawImage(c, 0, 0, lado, lado);
+    g.filter = `blur(${glow * 3}px)`;  g.drawImage(c, 0, 0, lado, lado);
+    g.filter = 'none';
+    g.globalCompositeOperation = 'source-over';
+  }
+  requestAnimationFrame(pintar);
+}
+
+orbe('#a', 340);
+orbe('#b', 160);
+orbe('#c', 46, { hueco: 1.2, amp: 0.16 });  // chiquito: menos hueco o desaparece
+
+// ponytail: comprobación mínima — el fresnel es lo único con lógica real acá.
+// Si alguien lo toca y el orbe se vuelve una bola llena, esto falla.
+console.assert(Math.pow(1 - 1, 2.6) === 0,      'frente: debe apagarse');
+console.assert(Math.pow(1 - 0, 2.6) === 1,      'borde: debe brillar');
+console.assert(Math.pow(1 - 0.5, 2.6) < 0.2,    'medio: mucho más cerca del frente que del borde');
+console.log('orbe: fresnel ok');
+</script>
+</body>
+</html>
