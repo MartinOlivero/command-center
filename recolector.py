@@ -1230,7 +1230,11 @@ def version_publicada():
     """
     try:
         with urllib.request.urlopen(REPO_CONFIG, timeout=4) as r:
-            texto = r.read(4000).decode("utf-8", "replace")
+            # El archivo entero (son 7 KB). Leer "los primeros N bytes" parecía más
+            # prudente, pero deja una bomba: el día que el comentario de arriba de
+            # VERSION crezca y la empuje más abajo, el aviso deja de aparecer y nadie
+            # se entera. El tope es solo para no tragarse una respuesta absurda.
+            texto = r.read(200_000).decode("utf-8", "replace")
         hallado = re.search(r'^VERSION\s*=\s*"([^"]+)"', texto, re.M)
         if not hallado or hallado.group(1) == config.VERSION:
             return None
