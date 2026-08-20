@@ -183,7 +183,7 @@ Doble clic en **`Abrir panel.command`** / **`Abrir panel.bat`**.
 | Actualizar los datos | el botón ↻ arriba a la derecha |
 | Entender qué significa cada número | la pantalla **Cómo leer este panel** |
 | Ver si la conexión con Meta sigue viva | `python3 instalar.py --estado` |
-| Actualizar a la última versión | `python3 instalar.py --actualizar` — reemplaza solo el código; tu `.env`, tu configuración y tu histórico quedan intactos |
+| Actualizar a la última versión | Doble clic en **`Actualizar.command`** / **`Actualizar.bat`** — reemplaza solo el código; tu `.env`, tu configuración y tu histórico quedan intactos |
 
 ---
 
