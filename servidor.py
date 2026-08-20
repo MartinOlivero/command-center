@@ -33,6 +33,7 @@ import socketserver
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 
 import auditoria
@@ -674,6 +675,14 @@ class Manejador(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self):
+        marcar_actividad()
+        # El latido de la pestaña abierta. Contesta lo más barato posible: es una vez
+        # por minuto y su único trabajo es decir "todavía hay alguien mirando".
+        if self.path.split("?")[0] == "/latido":
+            self.send_response(204)
+            self.end_headers()
+            return
+
         # panel.html no viene en el paquete: lo escribe el recolector con los datos.
         # Si todavía no corrió, la biblioteca contesta un "404 File not found" que no
         # explica nada. analista.py y generador.py ya avisan bien en este caso; el
@@ -725,6 +734,7 @@ no hay nada que mostrar. Es cuestión de un minuto:</p>
         self.wfile.write(crudo)
 
     def do_POST(self):
+        marcar_actividad()
         largo = int(self.headers.get("Content-Length", 0))
         try:
             pedido = json.loads(self.rfile.read(largo) or b"{}")
@@ -762,6 +772,31 @@ no hay nada que mostrar. Es cuestión de un minuto:</p>
         except Exception as e:
             return self.responder(500, {"error": str(e)[:300]})
         self.responder(404, {"error": "ruta desconocida"})
+
+
+# ── apagado automático ──────────────────────────────────────────────────────
+# Corriendo en segundo plano no hay ventana que cerrar, así que el panel tiene que
+# saber apagarse solo. La pestaña abierta manda un latido cada minuto; cuando dejan de
+# llegar es que ya nadie está mirando. Sin esto, cada doble clic dejaría un proceso
+# vivo para siempre y a la semana habría diez.
+ULTIMA_SEÑAL = time.time()
+# 5 minutos sin latidos ni pedidos. Se puede bajar por entorno para probarlo sin
+# esperar: SIN_NADIE=3 python3 servidor.py
+SIN_NADIE = int(os.environ.get("SIN_NADIE", 300))
+
+
+def marcar_actividad():
+    global ULTIMA_SEÑAL
+    ULTIMA_SEÑAL = time.time()
+
+
+def vigilar(srv):
+    """Apaga el servidor cuando nadie lo usa. Corre en su propio hilo."""
+    while True:
+        time.sleep(min(30, max(1, SIN_NADIE // 3)))
+        if time.time() - ULTIMA_SEÑAL > SIN_NADIE:
+            threading.Thread(target=srv.shutdown, daemon=True).start()
+            return
 
 
 class Servidor(socketserver.ThreadingTCPServer):
@@ -810,7 +845,11 @@ def main():
         url = f"http://127.0.0.1:{puerto}/panel.html"
         print(f"Command Center en {url}")
         print("Los botones Actualizar y Generar del panel ya funcionan. Ctrl+C para cortar.\n")
-        threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+        if not os.environ.get("SIN_NAVEGADOR"):
+            threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+        # En segundo plano no hay ventana para cortar con Ctrl+C, así que el servidor
+        # tiene que saber irse solo cuando ya nadie tiene el panel abierto.
+        threading.Thread(target=vigilar, args=(srv,), daemon=True).start()
         try:
             srv.serve_forever()
         except KeyboardInterrupt:

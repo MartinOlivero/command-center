@@ -1910,6 +1910,16 @@ function explicarVariacion(pct, abs, sufijo, valor) {
   poner('mk-prod', m.producto);
   /* La version vive en el sello, no en la barra: sirve para soporte, no para el uso diario. */
   if (m.version) poner('mk-version', 'v' + m.version);
+
+  /* Latido: mientras esta pestaña esté abierta, el servidor sabe que hay alguien.
+     Corre en segundo plano y sin ventana que cerrar, asi que esta es su unica forma
+     de enterarse de que ya nadie lo usa y apagarse en vez de quedar vivo para siempre.
+     Si el panel se abrio como archivo suelto no hay servidor a quien avisarle. */
+  if (location.protocol.startsWith('http')) {
+    const latir = () => fetch('/latido').catch(() => {});
+    latir();
+    setInterval(latir, 60000);
+  }
   if (m.version_nueva) {
     poner('mk-nueva-num', 'v' + m.version_nueva);
     $('#mk-nueva').hidden = false;
@@ -2850,7 +2860,7 @@ function accionBajar(boton, msg, red, aviso) {
       location.reload();
     } catch (e) {
       msg.textContent = (e instanceof TypeError || e.message === 'SIN_SERVIDOR')
-        ? 'necesita servidor.py prendido (python3 servidor.py)'
+        ? 'abrí el panel desde el ícono del robot para usar este botón'
         : e.message.slice(0, 130);
       boton.disabled = false;
     }
@@ -3385,9 +3395,9 @@ new MutationObserver(() => aplicarGlosario()).observe(
       <button class="accion" id="com-boton">Traer nuevos</button>
       <span id="com-msg"></span></div>
       <div class="tarjeta"><p class="ayuda" style="margin:0">Todavía no hay comentarios
-      bajados. <b>Traer nuevos</b> los baja sin rehacer todo (necesita servidor.py);
+      bajados. <b>Traer nuevos</b> los baja sin rehacer todo (con el panel abierto desde el ícono del robot);
       la recolección completa es
-      <code style="font-family:var(--mono);color:var(--hud)">python3 recolector.py</code>.</p></div>
+      el botón ↻ de arriba a la derecha.</p></div>
       <div id="com-salida"></div></section>`;
     traerComentarios();
     return;
@@ -3560,7 +3570,7 @@ function traerComentarios() {
       msg.textContent = '';
     } catch (e) {
       msg.textContent = (e instanceof TypeError || e.message === 'SIN_SERVIDOR')
-        ? 'necesita servidor.py prendido (python3 servidor.py)'
+        ? 'abrí el panel desde el ícono del robot para usar este botón'
         : e.message.slice(0, 130);
     } finally {
       boton.disabled = false;
@@ -3856,8 +3866,8 @@ function analisisIA(a) {
       <span id="ia-msg"></span></div>
       <div class="tarjeta"><p class="ayuda" style="margin:0">Todavía no se corrió.
       <b>Volver a leer</b> lo corre ahora sobre los datos que ya están (necesita
-      servidor.py); a mano es
-      <code style="font-family:var(--mono);color:var(--hud)">python3 analista.py</code>.</p></div>`;
+      con el panel abierto desde el ícono del robot); a mano es
+      el botón de generar de esta misma pantalla.</p></div>`;
     botonAnalizar();
     return;
   }
@@ -4108,7 +4118,7 @@ function botonAnalizar() {
       if (nuevo) nuevo.textContent = 'lectura nueva — queda fija en el panel al Actualizar';
     } catch (e) {
       msg.textContent = (e instanceof TypeError || e.message === 'SIN_SERVIDOR')
-        ? 'necesita servidor.py prendido (python3 servidor.py)'
+        ? 'abrí el panel desde el ícono del robot para usar este botón'
         : e.message.slice(0, 130);
       boton.disabled = false;
       boton.textContent = 'Volver a leer';
@@ -4373,7 +4383,7 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
     } catch (e) {
       // El caso más común no es un error de red: es el panel abierto sin servidor.
       msg.textContent = (e instanceof TypeError || e.message === 'SIN_SERVIDOR')
-        ? 'necesita servidor.py prendido (python3 servidor.py)'
+        ? 'abrí el panel desde el ícono del robot para usar este botón'
         : e.message.slice(0, 130);
     } finally {
       boton.disabled = false;

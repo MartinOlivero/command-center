@@ -1,4 +1,4 @@
-<h1 align="center">Panel de Métricas</h1>
+<h1 align="center">IamAutom Command Center</h1>
 
 <p align="center">
   <b>Todas tus redes en una pantalla. En tu computadora. Gratis.</b><br>
@@ -176,7 +176,9 @@ explicado dentro del instalador.
 
 ## Usarlo después
 
-Doble clic en **`Abrir panel.command`** / **`Abrir panel.bat`**.
+Doble clic en el **robot del Escritorio**. El panel se abre en el navegador y el servidor queda en segundo plano, sin ventanas: se apaga solo unos minutos después de que cerrás la pestaña.
+
+> Si preferís verlo con una ventana de terminal —para diagnosticar algo— también está `Abrir panel.command` / `Abrir panel.bat` en la carpeta.
 
 | Para... | Hacé |
 |---|---|

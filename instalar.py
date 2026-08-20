@@ -821,7 +821,37 @@ def _acceso_mac(escritorio):
 
     ejecutable = os.path.join(macos, "lanzar")
     with open(ejecutable, "w") as f:
-        f.write(f'#!/bin/bash\nopen -a Terminal "{AQUI}/Abrir panel.command"\n')
+        # Sin ventana de Terminal: el panel es una app, no un script. Si ya hay un
+        # servidor vivo se abre el navegador y listo — dos doble clics no levantan dos
+        # servidores. El de adentro se apaga solo cuando se cierra la pestaña.
+        f.write(f'''#!/bin/bash
+cd "{AQUI}" || exit 1
+
+# El puerto no siempre es el 8760: si estaba ocupado, el servidor toma el siguiente.
+# Por eso se busca cuál responde en vez de darlo por sentado.
+buscar() {{
+  for p in $(seq 8760 8779); do
+    if curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$p/latido"; then
+      echo "$p"; return 0
+    fi
+  done
+  return 1
+}}
+
+if p=$(buscar); then
+  open "http://127.0.0.1:$p/panel.html"; exit 0   # ya estaba abierto: no levantar otro
+fi
+
+# SIN_NAVEGADOR: el servidor abre el navegador solo, y acá ya lo abrimos nosotros.
+SIN_NAVEGADOR=1 nohup python3 servidor.py > panel.log 2>&1 &
+
+for i in $(seq 1 12); do
+  sleep 0.5
+  if p=$(buscar); then open "http://127.0.0.1:$p/panel.html"; exit 0; fi
+done
+
+osascript -e 'display alert "No pude abrir el panel" message "Mirá el archivo panel.log en la carpeta del panel."'
+''')
     os.chmod(ejecutable, 0o755)  # sin esto el doble clic no hace nada
 
     icono = os.path.join(AQUI, "icono.icns")
