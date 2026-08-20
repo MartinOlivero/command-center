@@ -1714,6 +1714,14 @@ def main():
             print(f"  {red}: apagado en config.json, no se muestra.")
             del redes[red]
 
+    # Y las que ni siquiera se calcularon en esta corrida. Pasa al actualizar una sola
+    # red: las demás se heredan del panel anterior, y una red que nunca estuvo ahí no
+    # se hereda de ningún lado. Sin esto, la invitación a conectar aparecía o no según
+    # cómo se hubiera actualizado, que es peor que no tenerla.
+    for red in POR_CONECTAR:
+        if red not in redes:
+            redes[red] = _red_pendiente(red)
+
     # ---- CAMPAÑAS DE META ADS (opcional) ----
     # Solo si hay META_ADS_TOKEN en el .env. Es una credencial DISTINTA de la del panel:
     # las cuentas publicitarias cuelgan del usuario, no de la Página. Sin la variable,
