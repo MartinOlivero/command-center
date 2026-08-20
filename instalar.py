@@ -907,6 +907,13 @@ def actualizar():
                     continue
                 with open(destino, "wb") as f:
                     f.write(nuevo)
+                # zipfile NO restaura permisos: un lanzador nuevo llegaría sin el bit de
+                # ejecución y el doble clic no haría nada. Los que ya existían se salvan
+                # de casualidad, porque sobrescribir no cambia el modo de un archivo
+                # existente — así que el bug solo aparecería con archivos nuevos.
+                modo = miembro.external_attr >> 16
+                if modo & 0o111:
+                    os.chmod(destino, 0o755)
                 cambiados.append(relativo)
     except (zipfile.BadZipFile, OSError) as e:
         print(f"  El archivo bajado no se pudo abrir ({e}). No toqué nada.")

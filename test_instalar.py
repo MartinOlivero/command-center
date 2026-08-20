@@ -298,6 +298,20 @@ assert open(os.path.join(destino, "historico.jsonl")).read() == "MIS DATOS DE ME
 assert os.path.exists(os.path.join(destino, "piezas", "logo.svg")), \
     "tiene que crear los subdirectorios que vengan en el zip"
 
+# Un lanzador NUEVO tiene que llegar ejecutable: zipfile no restaura permisos y un
+# .command sin el bit de ejecucion no hace nada al doble clic. Solo se nota con
+# archivos nuevos, porque sobrescribir uno existente no le cambia el modo.
+crudo2 = io.BytesIO()
+with zipfile.ZipFile(crudo2, "w") as z:
+    info = zipfile.ZipInfo("command-center-main/Lanzador.command")
+    info.external_attr = 0o100755 << 16
+    z.writestr(info, "#!/bin/bash\n")
+crudo2.seek(0)
+instalar.urllib.request.urlopen = lambda *a, **k: io.BytesIO(crudo2.getvalue())
+assert instalar.actualizar() == 0
+assert os.access(os.path.join(destino, "Lanzador.command"), os.X_OK), \
+    "un .command nuevo tiene que quedar ejecutable"
+
 # una descarga fallida no puede dejar la instalacion a medias
 def explota(*a, **k):
     raise instalar.urllib.error.URLError("sin internet")
