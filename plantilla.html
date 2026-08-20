@@ -141,6 +141,15 @@ body::after {
   background: linear-gradient(158deg, rgba(12,163,12,.10), rgba(255,255,255,.012) 60%) }
 .pie-lateral b { display: flex; align-items: center; gap: 7px; color: #4ade80;
                  font-size: 11px; margin-bottom: 7px; letter-spacing: .1em }
+/* Aviso de version nueva. Usa el ambar del HUD y no el verde de "todo bien": es una
+   tarea pendiente, no un estado saludable. Aparece solo cuando hay algo que actualizar. */
+.nueva-version { margin-top: 14px; padding: 11px 12px; border-radius: 8px;
+  border: 1px solid rgba(255, 176, 32, .35); background: rgba(255, 176, 32, .09);
+  font-family: var(--mono); font-size: 10.5px; line-height: 1.65; color: var(--texto-2) }
+.nueva-version b { display: block; color: var(--ambar); letter-spacing: .1em;
+                   font-size: 10px; margin-bottom: 4px }
+.nueva-version i { color: var(--texto); font-style: normal }
+
 /* Sello de autoría. Va tenue a propósito: la marca que manda en el panel es la del
    cliente (arriba, en .marca); esto es la firma de quien lo construyó. */
 .sello { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.06);
@@ -1502,6 +1511,10 @@ tbody tr:hover { background: rgba(34,211,238,.05) }
   <div class="pie-lateral">
     <b><i class="latido"></i>DATOS REALES</b>
     Conectado a las APIs oficiales.<br>Nada de esto es de ejemplo.
+    <div class="nueva-version" id="mk-nueva" hidden>
+      <b>HAY UNA VERSIÓN NUEVA</b>
+      <span id="mk-nueva-num"></span> · doble clic en <i>Actualizar</i>, en la carpeta del panel.
+    </div>
     <div class="sello">
       <b>IAMAUTOM COMMAND CENTER <span id="mk-version"></span></b>
       by <a href="https://www.youtube.com/@Tincho.Olivero" target="_blank" rel="noopener">@tincho.olivero</a><br>
@@ -1897,6 +1910,10 @@ function explicarVariacion(pct, abs, sufijo, valor) {
   poner('mk-prod', m.producto);
   /* La version vive en el sello, no en la barra: sirve para soporte, no para el uso diario. */
   if (m.version) poner('mk-version', 'v' + m.version);
+  if (m.version_nueva) {
+    poner('mk-nueva-num', 'v' + m.version_nueva);
+    $('#mk-nueva').hidden = false;
+  }
   poner('mk-cta', m.cuenta); poner('mk-cta2', m.cuenta);
   if (m.organizacion) document.title = `${m.organizacion} · ${m.producto || ''}`.trim();
   const cuad = $('.logo .cuad');

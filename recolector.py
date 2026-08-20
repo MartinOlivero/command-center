@@ -1211,6 +1211,34 @@ def paso(nombre):
     print(nombre)
 
 
+REPO_CONFIG = ("https://raw.githubusercontent.com/MartinOlivero/"
+               "command-center/main/config.py")
+
+
+def version_publicada():
+    """La última versión publicada, o None si no se pudo averiguar.
+
+    Sin esto el panel tiene botón de actualizar y nadie lo aprieta nunca, porque no hay
+    forma de enterarse de que hay algo nuevo.
+
+    Se lee la VERSION del `config.py` del repositorio en vez de usar releases: así la
+    versión vive en UN solo lugar y no hay dos números que se puedan contradecir.
+
+    Nunca puede frenar la recolección: si no hay internet, si el repo es privado o si
+    tarda, devuelve None y el panel simplemente no muestra el aviso. Cuatro segundos de
+    espera es el techo — nadie va a esperar más por un cartel informativo.
+    """
+    try:
+        with urllib.request.urlopen(REPO_CONFIG, timeout=4) as r:
+            texto = r.read(4000).decode("utf-8", "replace")
+        hallado = re.search(r'^VERSION\s*=\s*"([^"]+)"', texto, re.M)
+        if not hallado or hallado.group(1) == config.VERSION:
+            return None
+        return hallado.group(1)
+    except Exception:                      # noqa: BLE001 — un cartel no rompe la corrida
+        return None
+
+
 def estado_meta(cred):
     """Diagnostico del token de Meta: quien es, que puede hacer, cuando caduca.
 
@@ -1678,7 +1706,7 @@ def main():
         "redes": redes,
         "calendario": agenda,
         "marca": {**CFG.get("marca", {}), "producto": config.PRODUCTO,
-                  "version": config.VERSION},
+                  "version": config.VERSION, "version_nueva": version_publicada()},
         "conexion": estado_meta(cred),
         "ads": ads,
         "avisos": sorted(set(AVISOS)),

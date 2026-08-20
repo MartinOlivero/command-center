@@ -97,4 +97,24 @@ assert "</script>" not in json.dumps(falso).replace("</", "<\\/"), \
 recuperado = json.loads(re.search(r"const DATOS = (\{.*?\});\n", html, re.S).group(1))
 assert recuperado == falso, "los datos se deforman al incrustarse"
 
+# ── aviso de version nueva ──────────────────────────────────────────────────
+# Lo importante no es que avise: es que NUNCA pueda frenar la recoleccion. Un cartel
+# informativo no puede ser el motivo por el que alguien se queda sin datos.
+import io as _io
+
+panel.urllib.request.urlopen = lambda *a, **k: _io.BytesIO(b'VERSION = "9.9.9"\n')
+assert panel.version_publicada() == "9.9.9", "tiene que detectar una version mayor"
+
+panel.urllib.request.urlopen = (
+    lambda *a, **k: _io.BytesIO(f'VERSION = "{panel.config.VERSION}"\n'.encode()))
+assert panel.version_publicada() is None, "si es la misma version, no se avisa nada"
+
+def _sin_internet(*a, **k):
+    raise OSError("sin internet")
+panel.urllib.request.urlopen = _sin_internet
+assert panel.version_publicada() is None, "sin internet no puede explotar"
+
+panel.urllib.request.urlopen = lambda *a, **k: _io.BytesIO(b"<html>404</html>")
+assert panel.version_publicada() is None, "una respuesta que no es config.py se ignora"
+
 print("OK — todos los checks pasaron")
