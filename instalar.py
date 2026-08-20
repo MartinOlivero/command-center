@@ -874,6 +874,14 @@ def actualizar():
     try:
         with urllib.request.urlopen(REPO_ZIP, timeout=60) as r:
             crudo = io.BytesIO(r.read())
+    except urllib.error.HTTPError as e:
+        # GitHub contesta 404 —no 403— cuando el repositorio es privado: no revela que
+        # existe. Decir "revisá tu conexión" acá manda a la persona a buscar donde no es.
+        print(f"  El servidor respondió {e.code}.")
+        print("  Si el repositorio todavía es privado, la descarga automática no funciona:"
+              "\n  pedí el ZIP a quien te pasó el panel." if e.code == 404 else
+              "  Probá de nuevo en un rato.")
+        return 1
     except (urllib.error.URLError, OSError) as e:
         print(f"  No pude descargarla ({e}).")
         print("  Revisá tu conexión, o bajá el ZIP a mano desde el repositorio.")
