@@ -828,7 +828,35 @@ def abrir_puerto(desde, intentos):
     return None, None
 
 
+def al_fondo():
+    """Se desprende de quien lo lanzó y sigue vivo por su cuenta.
+
+    Con `nohup ... &` no alcanza en macOS: cuando la app que hizo el doble clic
+    termina, LaunchServices se lleva puestos los procesos que quedaron colgando de
+    ella, y el panel moría antes de atender el primer pedido.
+
+    El doble fork con `setsid` en el medio es la receta de siempre para esto: el
+    primer fork devuelve el control enseguida, `setsid` abre una sesión nueva sin
+    terminal de la que depender, y el segundo evita volver a agarrar una.
+    """
+    if os.fork() > 0:
+        os._exit(0)
+    os.setsid()
+    if os.fork() > 0:
+        os._exit(0)
+
+    # Sin terminal, lo que se imprima tiene que ir a algún lado o se pierde: si algo
+    # falla, el log es la única pista que le queda a la persona.
+    log = open(os.path.join(AQUI, "panel.log"), "a", buffering=1)
+    os.dup2(log.fileno(), sys.stdout.fileno())
+    os.dup2(log.fileno(), sys.stderr.fileno())
+    with open(os.devnull) as nada:
+        os.dup2(nada.fileno(), sys.stdin.fileno())
+
+
 def main():
+    if "--fondo" in sys.argv:
+        al_fondo()
     # Si la persona eligió el puerto a mano, se respeta y no se busca otro: pidió ESE.
     elegido_a_mano = bool(os.environ.get("PUERTO"))
     srv, puerto = abrir_puerto(PUERTO, 1 if elegido_a_mano else 20)

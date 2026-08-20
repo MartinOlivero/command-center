@@ -825,7 +825,12 @@ def _acceso_mac(escritorio):
         # servidor vivo se abre el navegador y listo — dos doble clics no levantan dos
         # servidores. El de adentro se apaga solo cuando se cierra la pestaña.
         f.write(f'''#!/bin/bash
-cd "{AQUI}" || exit 1
+# Si la carpeta se movió, o macOS todavía no dio permiso para entrar a ella, hay que
+# decirlo: morir en silencio deja a la persona haciendo doble clic sin entender nada.
+if ! cd "{AQUI}"; then
+  osascript -e 'display alert "No encuentro la carpeta del panel" message "Estaba en:\\n\\n{AQUI}\\n\\nSi la moviste, volvé a correr el instalador desde su nueva ubicación. Si macOS te pidió permiso para acceder a esa carpeta, dale Permitir."'
+  exit 1
+fi
 
 # El puerto no siempre es el 8760: si estaba ocupado, el servidor toma el siguiente.
 # Por eso se busca cuál responde en vez de darlo por sentado.
@@ -842,8 +847,9 @@ if p=$(buscar); then
   open "http://127.0.0.1:$p/panel.html"; exit 0   # ya estaba abierto: no levantar otro
 fi
 
-# SIN_NAVEGADOR: el servidor abre el navegador solo, y acá ya lo abrimos nosotros.
-SIN_NAVEGADOR=1 nohup python3 servidor.py > panel.log 2>&1 &
+# --fondo: el servidor se desprende solo y sobrevive a que esta app termine.
+# SIN_NAVEGADOR: lo abre este script, para no terminar con dos pestañas.
+SIN_NAVEGADOR=1 python3 servidor.py --fondo >> panel.log 2>&1
 
 for i in $(seq 1 12); do
   sleep 0.5
@@ -966,6 +972,62 @@ def actualizar():
     return 0
 
 
+def carpeta_protegida(ruta):
+    """Si el panel quedó en una carpeta que macOS protege.
+
+    Escritorio, Documentos y Descargas están detrás de TCC: una app sin firma de
+    desarrollador registrado no puede LEER ahí, y macOS ni siquiera pregunta — deniega
+    y listo. El acceso del Escritorio abre igual, pero el servidor no puede abrir sus
+    propios archivos y el panel no arranca nunca.
+
+    Y es justo donde termina el ZIP que baja cualquiera: Descargas.
+    """
+    if sys.platform != "darwin":
+        return False
+    casa = os.path.realpath(os.path.expanduser("~"))
+    aqui = os.path.realpath(ruta)
+    return any(aqui == os.path.join(casa, c) or aqui.startswith(os.path.join(casa, c) + os.sep)
+               for c in ("Desktop", "Documents", "Downloads",
+                         "Escritorio", "Documentos", "Descargas"))
+
+
+def mudarse():
+    """Mueve el panel fuera de las carpetas protegidas. Devuelve el destino, o None.
+
+    No se mueve solo mientras corre: se mueve y se pide volver a empezar desde el nuevo
+    lugar. Reescribir la carpeta que uno mismo está ejecutando es la clase de atajo que
+    funciona nueve de cada diez veces.
+    """
+    destino = os.path.join(os.path.expanduser("~"), "Command Center")
+    print(f"""
+  ATENCIÓN: el panel está en una carpeta que macOS protege.
+
+      {AQUI}
+
+  Desde ahí el acceso del Escritorio no va a poder abrirlo: macOS no deja que una
+  aplicación lea dentro de Escritorio, Documentos ni Descargas, y ni siquiera avisa.
+  Se resuelve moviéndolo una vez, a:
+
+      {destino}""")
+    if not si_no("\n¿Lo muevo ahí?"):
+        print("  Lo dejo donde está. Vas a tener que abrirlo con 'Abrir panel.command'.")
+        return None
+    if os.path.exists(destino):
+        print(f"  Ya existe {destino}. Movelo o borralo y volvé a correr esto.")
+        return None
+    try:
+        shutil.move(AQUI, destino)
+    except OSError as e:
+        print(f"  No pude moverlo ({e}). Hacelo a mano y volvé a correr el instalador.")
+        return None
+    print(f"""
+  Listo, ahora vive en:
+      {destino}
+
+  Abrí esa carpeta y hacé doble clic en 'Instalar.command' para terminar.""")
+    return destino
+
+
 def crear_acceso_directo():
     """Deja el panel a un doble clic en el Escritorio.
 
@@ -995,6 +1057,11 @@ def main():
     print(f"  \033[2m{SELLO} · v{config.VERSION}\033[0m\n")
     print("  Seis pasos. Se puede cortar en cualquier momento con Ctrl+C y retomar:")
     print("  nada queda a medias.")
+
+    # Antes que nada: si está en una carpeta protegida, moverlo. Todo lo que venga
+    # después (credenciales, config, datos) tendría que rehacerse en la ruta nueva.
+    if carpeta_protegida(AQUI) and mudarse():
+        return 0
 
     hallado = revisar_dependencias()
 

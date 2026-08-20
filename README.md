@@ -143,7 +143,7 @@ Prefiero decírtelo antes de que instales:
 
 ### Tres pasos
 
-1. **Code → Download ZIP** (botón verde arriba), y descomprimilo.
+1. **Code → Download ZIP** (botón verde arriba), y descomprimilo **fuera de Descargas, Documentos y Escritorio** — por ejemplo en una carpeta nueva en tu usuario. macOS protege esas tres y no deja que el panel lea sus propios archivos desde ahí. Si te olvidás, el instalador lo detecta y te ofrece moverlo.
 2. Doble clic en **`Instalar.command`** (macOS) o **`Instalar.bat`** (Windows).
 3. Contestá las seis preguntas. Al final el panel se abre solo.
 
