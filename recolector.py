@@ -1214,6 +1214,27 @@ def paso(nombre):
 REPO_CONFIG = ("https://raw.githubusercontent.com/MartinOlivero/"
                "command-center/main/config.py")
 
+# Redes que NO desaparecen del panel cuando están apagadas: se muestran pendientes de
+# conectar. Instagram y Facebook salen del mismo token, así que apagarlas es una decisión
+# ("no uso esa red") y mostrarlas vacías molestaría. Estas dos, en cambio, están apagadas
+# porque falta un trámite —y lo que no se ve, no se pide.
+POR_CONECTAR = {
+    "youtube": ("Conectar YouTube pide una autorización propia con Google, aparte del "
+                "token de Meta. Está explicado en el README, y si preferís que lo deje "
+                "andando por vos, escribime: iamautom.com"),
+    "tiktok": ("Conectar TikTok pide autorizar la cuenta desde el navegador, aparte del "
+               "token de Meta. Está explicado en el README, y si preferís que lo deje "
+               "andando por vos, escribime: iamautom.com"),
+}
+
+
+def _red_pendiente(red):
+    """Una red apagada, mostrada como pendiente en vez de borrada del panel."""
+    return {"nombre": {"youtube": "YouTube", "tiktok": "TikTok"}[red],
+            "conectada": False, "cuenta": "sin conectar", "seguidores": 0, "foto": "",
+            "kpis": [], "serie": [], "serie_etiqueta": "", "posts": [],
+            "pais": [], "ciudad": [], "motivo": POR_CONECTAR[red]}
+
 
 def version_publicada():
     """La última versión publicada, o None si no se pudo averiguar.
@@ -1277,6 +1298,14 @@ def _facebook(cred, inicio, inicio_previo, ahora):
         "conectada": bool(fb_perfil.get("name")),
         "cuenta": fb_perfil.get("name", "?"),
         "seguidores": fb_perfil.get("followers_count", 0),
+        # Meta no entrega estadísticas de Páginas con menos de 100 likes: devuelve ceros
+        # sin explicar nada. Decirlo acá evita la lectura equivocada —y cara— de que el
+        # panel está roto. Cuando la Página cruce los 100, los números aparecen solos.
+        "motivo": (
+            f"Meta todavía no entrega estadísticas de esta Página: hacen falta 100 "
+            f"seguidores y hoy tiene {fb_perfil.get('fan_count', 0)}. No es un error del "
+            f"panel — los números van a aparecer solos cuando la Página cruce ese número."
+            if fb_perfil.get("name") and fb_perfil.get("fan_count", 0) < 100 else None),
         "foto": "",
         "kpis": [
             {"nombre": "Seguidores", "valor": fb_perfil.get("followers_count", 0),
@@ -1678,8 +1707,12 @@ def main():
     # Las redes apagadas en config.json no llegan al panel. Se calculan igual (es más
     # barato que reescribir los bloques) pero no se muestran ni ensucian el análisis.
     for red in [r for r in redes if not config.red_activa(CFG, r)]:
-        print(f"  {red}: apagado en config.json, no se muestra.")
-        del redes[red]
+        if red in POR_CONECTAR:
+            print(f"  {red}: apagado, se muestra como pendiente de conectar.")
+            redes[red] = _red_pendiente(red)
+        else:
+            print(f"  {red}: apagado en config.json, no se muestra.")
+            del redes[red]
 
     # ---- CAMPAÑAS DE META ADS (opcional) ----
     # Solo si hay META_ADS_TOKEN en el .env. Es una credencial DISTINTA de la del panel:

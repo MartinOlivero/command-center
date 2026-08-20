@@ -2891,6 +2891,12 @@ function detalle() {
     return;
   }
 
+  /* Una red conectada que igual no puede dar números (Facebook por debajo del mínimo
+     de Meta, por ejemplo) explica por qué en vez de mostrar una fila de ceros: un cero
+     sin explicación se lee como panel roto, no como límite de la plataforma. */
+  const explicacion = (r.conectada && r.motivo)
+    ? `<div class="tarjeta"><div class="aviso">${r.motivo}</div></div>` : '';
+
   const kpis = `<div class="kpis">${r.kpis.map(k => {
     const d = variacion(k.delta, k.sufijo, k.valor);
     // El de comentarios es el único KPI que tiene una vista propia detrás: el
@@ -2992,7 +2998,7 @@ function detalle() {
          Los guardados y compartidos valen más que los likes: son las señales que el algoritmo
          usa para mostrarte a gente nueva.</p>${dona(r.mix, c)}</div>` : '';
 
-  $('#detalle').innerHTML = `<div class="tarjeta">${kpis}
+  $('#detalle').innerHTML = explicacion + `<div class="tarjeta">${kpis}
     ${r.serie.length ? `<div style="margin-top:18px">${grafico(r.serie, r.serie_etiqueta, c)}</div>
     <p class="ayuda" style="margin:10px 0 0">${r.serie_etiqueta}.</p>` : ''}
     </div>${nota}${retencion((r.curvas || [])[0] ? r.curvas[0].puntos : [], c, r.top_id)}
