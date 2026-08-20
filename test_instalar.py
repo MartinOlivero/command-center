@@ -312,6 +312,16 @@ assert instalar.actualizar() == 0
 assert os.access(os.path.join(destino, "Lanzador.command"), os.X_OK), \
     "un .command nuevo tiene que quedar ejecutable"
 
+# Y el caso que se escapo la primera vez: contenido YA correcto pero permisos rotos.
+# Como no hay nada que reescribir, es el unico que no se arregla solo salvo que se
+# revisen los permisos aunque el archivo no cambie.
+os.chmod(os.path.join(destino, "Lanzador.command"), 0o644)
+crudo2.seek(0)
+instalar.urllib.request.urlopen = lambda *a, **k: io.BytesIO(crudo2.getvalue())
+assert instalar.actualizar() == 0
+assert os.access(os.path.join(destino, "Lanzador.command"), os.X_OK), \
+    "un lanzador con permisos rotos tiene que repararse aunque su contenido este bien"
+
 # una descarga fallida no puede dejar la instalacion a medias
 def explota(*a, **k):
     raise instalar.urllib.error.URLError("sin internet")

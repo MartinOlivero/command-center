@@ -903,16 +903,19 @@ def actualizar():
                 destino = os.path.join(AQUI, relativo)
                 os.makedirs(os.path.dirname(destino), exist_ok=True)
                 nuevo = z.read(miembro)
+                # zipfile NO restaura permisos: un lanzador que llega sin el bit de
+                # ejecución no hace nada al doble clic. Se revisa SIEMPRE, aunque el
+                # contenido no cambie: un archivo correcto con permisos rotos es
+                # justamente el que nunca se arreglaría solo.
+                ejecutable = bool((miembro.external_attr >> 16) & 0o111)
                 if os.path.exists(destino) and open(destino, "rb").read() == nuevo:
+                    if ejecutable and not os.access(destino, os.X_OK):
+                        os.chmod(destino, 0o755)
+                        cambiados.append(f"{relativo} (permisos)")
                     continue
                 with open(destino, "wb") as f:
                     f.write(nuevo)
-                # zipfile NO restaura permisos: un lanzador nuevo llegaría sin el bit de
-                # ejecución y el doble clic no haría nada. Los que ya existían se salvan
-                # de casualidad, porque sobrescribir no cambia el modo de un archivo
-                # existente — así que el bug solo aparecería con archivos nuevos.
-                modo = miembro.external_attr >> 16
-                if modo & 0o111:
+                if ejecutable:
                     os.chmod(destino, 0o755)
                 cambiados.append(relativo)
     except (zipfile.BadZipFile, OSError) as e:
