@@ -171,12 +171,27 @@ def _por_cli(prompt, timeout):
     extra = {}
     if os.name == "nt":
         extra["creationflags"] = subprocess.CREATE_NO_WINDOW
-    r = subprocess.run(["claude", "-p", CONSIGNA], input=prompt,
-                       capture_output=True, text=True,
-                       # Sin esto Windows decodifica la respuesta con la codepage
-                       # local, y todo lo que devuelve el modelo viene en español.
-                       encoding="utf-8", errors="replace",
-                       timeout=timeout, **extra)
+    try:
+        r = subprocess.run(["claude", "-p", CONSIGNA], input=prompt,
+                           capture_output=True, text=True,
+                           # Sin esto Windows decodifica la respuesta con la codepage
+                           # local, y todo lo que devuelve el modelo viene en español.
+                           encoding="utf-8", errors="replace",
+                           timeout=timeout, **extra)
+    except subprocess.TimeoutExpired:
+        # Se traduce acá y no se deja subir: `TimeoutExpired` no es RuntimeError, así
+        # que se escapaba de quien atrapa los errores y la persona terminaba viendo
+        # media línea del `subprocess.py` de Python en la pantalla del panel.
+        raise RuntimeError(
+            f"Claude Code no contestó en {timeout} segundos. No es que tardó: no "
+            "contestó nunca. Abrí una terminal en esta carpeta y probá "
+            '`claude -p "hola"` a mano — si ahí también se queda colgado, el '
+            "problema es del CLI y no del panel.") from None
+    except FileNotFoundError:
+        raise RuntimeError(
+            "No encontré el comando `claude`. Instalalo con "
+            "`npm i -g @anthropic-ai/claude-code`, o poné una ANTHROPIC_API_KEY "
+            "en el .env para no depender de él.") from None
     if r.returncode != 0:
         raise RuntimeError(f"el CLI de Claude falló: {(r.stderr or '').strip()[:300]}")
     return r.stdout.strip()
@@ -318,6 +333,23 @@ def _autochequeo():
         "el prompt no puede ir como argumento: Windows lo corta en 8191"
     assert visto["kw"]["input"] == "x" * 30000, "el prompt tiene que ir por stdin"
     assert visto["kw"]["encoding"] == "utf-8", "la respuesta del modelo viene en español"
+
+    # Un CLI que no contesta y uno que no está tienen que salir por la misma puerta que
+    # el resto de los errores: quien llama atrapa RuntimeError. Antes se escapaban, y
+    # la persona veía media línea del subprocess.py de Python en el panel.
+    for explota, pista in ((subprocess.TimeoutExpired("claude", 1), "no contestó"),
+                           (FileNotFoundError(), "npm i -g")):
+        def revienta(cmd, **kw):
+            raise explota
+
+        subprocess.run = revienta
+        try:
+            _por_cli("hola", 1)
+            raise AssertionError(f"tendría que haber fallado con {type(explota).__name__}")
+        except RuntimeError as e:
+            assert pista in str(e), f"el error no dice qué hacer: {e}"
+        finally:
+            subprocess.run = real
 
     # La dirección: por defecto Anthropic, y sin barras dobles al apuntar a otro lado.
     assert _url({}) == "https://api.anthropic.com/v1/messages"
