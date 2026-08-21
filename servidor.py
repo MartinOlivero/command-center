@@ -458,6 +458,42 @@ def reanalizar():
         _analizando.release()
 
 
+def actualizar_panel():
+    """Trae la versión nueva del panel, sin que la persona vaya hasta la carpeta.
+
+    Es el mismo `instalar.py --actualizar` del doble clic, disparado desde el cartel.
+    Va por subproceso y no importando `instalar`: esa función termina en `sys.exit()`,
+    que adentro del servidor mataría el hilo.
+
+    Lo que NO puede hacer es dejar el panel corriendo con el código nuevo. Un programa
+    no se reemplaza a sí mismo mientras corre: este proceso ya tiene sus módulos en
+    memoria y sigue con los viejos hasta que se lo cierra y se lo vuelve a abrir. Por
+    eso devuelve el aviso además del resultado — prometer menos es lo único honesto.
+
+    Tampoco se actualiza con una recolección o un análisis a medio correr: esos
+    procesos leen los .py del disco al arrancar, y cambiárselos abajo mientras trabajan
+    es pedir un error que después no se puede reproducir.
+    """
+    if not _actualizando.acquire(blocking=False):
+        raise RuntimeError("esperá a que termine de bajar los datos")
+    if not _analizando.acquire(blocking=False):
+        _actualizando.release()
+        raise RuntimeError("esperá a que termine el análisis")
+    try:
+        r = subprocess.run([sys.executable, os.path.join(AQUI, "instalar.py"),
+                            "--actualizar"], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=180)
+        if r.returncode != 0:
+            # El instalador cuenta sus problemas por stdout (que el repo no contesta,
+            # que no hay internet); stderr queda para lo que ni él vio venir.
+            raise RuntimeError(r.stdout.strip()[-300:] or r.stderr.strip()[-300:]
+                               or "no se pudo actualizar")
+        return {"salida": r.stdout.strip()[-600:]}
+    finally:
+        _analizando.release()
+        _actualizando.release()
+
+
 def comentarios_nuevos():
     """Los comentarios nuevos de Instagram, sin rehacer toda la recolección.
 
@@ -818,6 +854,9 @@ no hay nada que mostrar. Es cuestión de un minuto:</p>
                 return self.responder(200, generar(pedido))
             if self.path == "/render":
                 return self.responder(200, render(pedido.get("archivo", "")))
+            if self.path == "/actualizar-panel":
+                print("  trayendo la versión nueva del panel...")
+                return self.responder(200, actualizar_panel())
             if self.path == "/abrir":
                 return self.responder(200, abrir_carpeta(pedido.get("carpeta", "")))
             if self.path == "/auditar":

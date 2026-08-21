@@ -149,6 +149,12 @@ body::after {
 .nueva-version b { display: block; color: var(--ambar); letter-spacing: .1em;
                    font-size: 10px; margin-bottom: 4px }
 .nueva-version i { color: var(--texto); font-style: normal }
+.nueva-version button { display: block; width: 100%; margin-top: 9px; padding: 7px 10px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em; cursor: pointer;
+  color: var(--ambar); background: rgba(255,176,32,.1); border-radius: 6px;
+  border: 1px solid rgba(255,176,32,.4); transition: all .15s }
+.nueva-version button:hover:not(:disabled) { color: #0b0f14; background: var(--ambar) }
+.nueva-version button:disabled { opacity: .55; cursor: default }
 
 /* Sello de autoría. Va tenue a propósito: la marca que manda en el panel es la del
    cliente (arriba, en .marca); esto es la firma de quien lo construyó. */
@@ -1522,7 +1528,8 @@ tbody tr:hover { background: rgba(34,211,238,.05) }
     Conectado a las APIs oficiales.<br>Nada de esto es de ejemplo.
     <div class="nueva-version" id="mk-nueva" hidden>
       <b>HAY UNA VERSIÓN NUEVA</b>
-      <span id="mk-nueva-num"></span> · doble clic en <i>Actualizar</i>, en la carpeta del panel.
+      <span id="mk-nueva-num"></span> · <span id="mk-nueva-como">doble clic en <i>Actualizar</i>, en la carpeta del panel.</span>
+      <button id="mk-nueva-btn" hidden>Actualizar ahora</button>
     </div>
     <div class="sello">
       <b>IAMAUTOM COMMAND CENTER <span id="mk-version"></span></b>
@@ -1932,6 +1939,30 @@ function explicarVariacion(pct, abs, sufijo, valor) {
   if (m.version_nueva) {
     poner('mk-nueva-num', 'v' + m.version_nueva);
     $('#mk-nueva').hidden = false;
+    // El boton actualiza desde acá, pero sólo si hay servidor: abierto con doble clic
+    // en panel.html (file://) no hay nadie del otro lado que pueda bajar nada, y un
+    // botón que no hace nada es peor que la instrucción de ir a la carpeta.
+    const bv = $('#mk-nueva-btn');
+    if (bv && location.protocol.startsWith('http')) {
+      $('#mk-nueva-como').textContent = 'ya se puede instalar desde acá.';
+      bv.hidden = false;
+      bv.onclick = async () => {
+        bv.disabled = true; bv.textContent = 'BAJANDO…';
+        try {
+          const res = await fetch('/actualizar-panel', { method: 'POST' });
+          const r = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(r.error || `el servidor respondió ${res.status}`);
+          // Los archivos ya están cambiados, pero este panel sigue corriendo el codigo
+          // viejo: un programa no se reemplaza a si mismo mientras corre. Decirlo es
+          // la unica forma de que la persona termine el trabajo.
+          $('#mk-nueva').innerHTML = `<b>LISTO · v${m.version_nueva}</b>
+            Cerrá el panel y volvé a abrirlo para que tome los cambios.`;
+        } catch (e) {
+          bv.textContent = 'NO PUDE: ' + (e.message || '').slice(0, 60);
+          bv.disabled = false;
+        }
+      };
+    }
   }
   poner('mk-cta', m.cuenta); poner('mk-cta2', m.cuenta);
   if (m.organizacion) document.title = `${m.organizacion} · ${m.producto || ''}`.trim();
