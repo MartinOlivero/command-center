@@ -688,8 +688,18 @@ def _urls_de(carpeta):
         rel = os.path.relpath(carpeta, AQUI)
     except ValueError:      # en Windows, si quedara en otra unidad
         return []
-    return ["/" + "/".join(urllib.parse.quote(t) for t in rel.split(os.sep) + [f])
-            for f in sorted(os.listdir(carpeta)) if f.lower().endswith(".png")]
+    return [_url(rel, f) for f in sorted(os.listdir(carpeta))
+            if f.lower().endswith(".png")]
+
+
+def _url(rel, archivo, sep=os.sep):
+    """La ruta en disco `rel/archivo`, como URL.
+
+    `sep` se puede pasar para probar el caso de Windows desde cualquier máquina: allá
+    el separador es "\\" y una URL con eso adentro no la sirve nadie. Es la única
+    parte de esto que cambia según el sistema, así que es la que tiene test.
+    """
+    return "/" + "/".join(urllib.parse.quote(t) for t in rel.split(sep) + [archivo])
 
 
 def abrir_carpeta(nombre):

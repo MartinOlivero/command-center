@@ -82,4 +82,13 @@ for intento in ("../../..", "..", "/etc", "no-existe", "../piezas-ia", ""):
     except RuntimeError:
         pass
 
+# ── las miniaturas tambien tienen que pedirse bien desde Windows ──────────────
+# Alla el separador de rutas es "\\", que en una URL no significa nada: si se cuela,
+# el panel muestra cuatro imagenes rotas. Y el nombre de la carpeta sale del titulo de
+# la pieza, asi que trae espacios y acentos.
+assert servidor._url(r"piezas\Cafe Nandu", "a b_01.png", sep="\\") == \
+    "/piezas/Cafe%20Nandu/a%20b_01.png", "una ruta de Windows no quedo pedible"
+assert servidor._url("piezas/Café Ñandú", "a b_01.png", sep="/") == \
+    "/piezas/Caf%C3%A9%20%C3%91and%C3%BA/a%20b_01.png", "se perdieron los acentos"
+
 print("OK — todos los checks pasaron")
