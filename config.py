@@ -75,6 +75,10 @@ DEFECTOS = {
         "youtube": [],
     },
     "dias": 30,
+    # Con qué navegador se convierten las piezas en imágenes. Vacío = se busca solo
+    # (Chrome, Chromium, Brave o Edge, en las carpetas de siempre). Se completa a mano
+    # solo si está instalado en un lugar raro y el panel no lo encuentra.
+    "chrome": "",
 }
 
 

@@ -17,6 +17,7 @@ script no simula creatividad: arma el brief con datos y hace el render.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -25,7 +26,62 @@ import config
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PANEL = os.path.join(AQUI, "panel.html")
 SALIDA = os.path.join(AQUI, "piezas")
-CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+# Chrome headless es el que convierte las piezas en PNG. La ruta NO es una sola, y
+# antes acá había UNA cableada: la de macOS con Chrome en /Applications. En cualquier
+# otra máquina el panel decía "No encuentro Chrome en /Applications/Google Chrome.app"
+# —incluso en Windows, donde esa carpeta no existe— aunque el navegador estuviera
+# instalado dos carpetas más allá. Se busca en los lugares reales y se acepta
+# cualquier navegador con motor Chromium: Brave, Edge y Chromium entienden los
+# mismos `--headless --screenshot` que Chrome, porque son el mismo motor.
+NAVEGADORES_MAC = [
+    "Google Chrome.app/Contents/MacOS/Google Chrome",
+    "Chromium.app/Contents/MacOS/Chromium",
+    "Brave Browser.app/Contents/MacOS/Brave Browser",
+    "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+]
+NAVEGADORES_WIN = [
+    r"Google\Chrome\Application\chrome.exe",
+    r"Microsoft\Edge\Application\msedge.exe",
+    r"BraveSoftware\Brave-Browser\Application\brave.exe",
+]
+# Linux, o cualquier instalación por gestor de paquetes: el binario está en el PATH.
+NAVEGADORES_PATH = ["google-chrome", "google-chrome-stable", "chromium",
+                    "chromium-browser", "brave-browser", "microsoft-edge"]
+
+
+def _candidatos():
+    """Las rutas donde puede estar el navegador, según la plataforma."""
+    if sys.platform == "darwin":
+        # /Applications es la instalación normal; ~/Applications es la de quien no
+        # tiene permisos de administrador, que en una Mac de trabajo es lo habitual.
+        return [os.path.join(base, app)
+                for base in ("/Applications", os.path.expanduser("~/Applications"))
+                for app in NAVEGADORES_MAC]
+    if os.name == "nt":
+        bases = [os.environ.get("PROGRAMFILES", r"C:\Program Files"),
+                 os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"),
+                 os.environ.get("LOCALAPPDATA", "")]
+        return [os.path.join(b, sub) for b in bases if b for sub in NAVEGADORES_WIN]
+    return []
+
+
+def buscar_chrome(cfg=None):
+    """El navegador con el que renderizar, o None si no hay ninguno.
+
+    Se puede fijar a mano con `"chrome": "/ruta/al/navegador"` en config.json (o con
+    la variable de entorno CHROME, para probar sin tocar el archivo). Esa es la
+    salida para quien lo tenga en una carpeta que no adivinamos: sin ella, el único
+    camino sería editar este archivo en cada actualización.
+    """
+    forzado = os.environ.get("CHROME") or (cfg or config.cargar()).get("chrome", "")
+    if forzado:
+        # Si alguien lo declaró y no está, se avisa de ESE y no se sigue buscando:
+        # encontrar otro por atrás escondería el error de tipeo en la ruta.
+        return os.path.expanduser(forzado) if os.path.exists(os.path.expanduser(forzado)) else None
+    for ruta in _candidatos():
+        if os.path.exists(ruta):
+            return ruta
+    return next((r for n in NAVEGADORES_PATH if (r := shutil.which(n))), None)
 
 # Medidas reales de cada formato de Instagram.
 FORMATOS = {
@@ -143,8 +199,15 @@ def render(ruta_json):
     formato = pieza.get("formato", "carrusel")
     if formato not in FORMATOS:
         sys.exit(f"Formato desconocido: {formato}. Usa uno de {list(FORMATOS)}")
-    if not os.path.exists(CHROME):
-        sys.exit(f"No encuentro Chrome en {CHROME}")
+    chrome = buscar_chrome()
+    if not chrome:
+        forzado = os.environ.get("CHROME") or config.cargar().get("chrome", "")
+        sys.exit(f"No encuentro el navegador declarado en {forzado}" if forzado else
+                 "No encuentro Google Chrome, ni ningún navegador con su mismo motor "
+                 "(Chromium, Brave, Edge). Las piezas se convierten en imágenes con "
+                 "Chrome, que es gratis: instalalo desde google.com/chrome y volvé a "
+                 'probar. Si ya lo tenés en otra carpeta, poné "chrome": "/ruta/al/'
+                 'navegador" en config.json.')
 
     an, al = FORMATOS[formato]
     nombre = pieza.get("titulo", "pieza").replace(" ", "-")
@@ -165,7 +228,7 @@ def render(ruta_json):
         tmp = os.path.join(destino, f"_tmp{i}.html")
         open(tmp, "w", encoding="utf-8").write(solo)
         png = os.path.join(destino, f"{nombre}_{i + 1:02d}.png")
-        subprocess.run([CHROME, "--headless", "--disable-gpu", "--hide-scrollbars",
+        subprocess.run([chrome, "--headless", "--disable-gpu", "--hide-scrollbars",
                         f"--screenshot={png}", f"--window-size={an},{al}",
                         f"file://{tmp}"],
                        check=True, capture_output=True)
@@ -186,6 +249,10 @@ def demo():
     assert "height:1920px" in html_pieza(p9), "medida de story incorrecta"
     # el texto del usuario tiene que llegar intacto, acentos incluidos
     assert "Comentá PANEL" in h, "se perdio el texto del slide"
+    # El buscador de navegador: lo que se declara gana, y una ruta declarada que no
+    # existe tiene que devolver None y no seguir buscando por atras.
+    assert buscar_chrome({"chrome": __file__}) == __file__, "ignoro el navegador declarado"
+    assert buscar_chrome({"chrome": "/no/existe/chrome"}) is None, "tapo una ruta mal escrita"
     print("OK — el generador arma el HTML correctamente")
 
 
