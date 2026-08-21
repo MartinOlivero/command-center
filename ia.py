@@ -104,6 +104,48 @@ def _env():
     return datos
 
 
+# Dónde puede estar `claude` además del PATH. Sale de la documentación oficial
+# (code.claude.com/docs/en/setup): el instalador nativo lo deja en ~/.local/bin, npm y
+# Homebrew lo enlazan en su carpeta de binarios, y los paquetes de Linux en /usr/bin.
+#
+# Por qué no alcanza con el PATH: un panel abierto con doble clic en el ícono NO pasa
+# por la terminal, y macOS le da a esa app un PATH mínimo —/usr/bin:/bin:/usr/sbin:
+# /sbin— sin nada de lo que agrega el .zshrc. Medido el 21/08/2026 en la máquina de
+# Tincho: `claude` en ~/.local/bin, el panel con ese PATH pelado, y el resultado era
+# "no encontré Claude Code" en una máquina que lo tiene instalado y funcionando.
+# El binario anda igual con ese PATH (es nativo, no necesita node): solo hay que
+# encontrarlo.
+_CASA = os.path.expanduser("~")
+CANDIDATOS_CLI = ([
+    # Windows: instalador nativo, y el .cmd que deja npm.
+    os.path.join(_CASA, ".local", "bin", "claude.exe"),
+    os.path.join(os.environ.get("APPDATA", ""), "npm", "claude.cmd"),
+] if os.name == "nt" else [
+    os.path.join(_CASA, ".local", "bin", "claude"),      # instalador nativo
+    os.path.join(_CASA, ".claude", "local", "claude"),   # instalación local vieja
+    os.path.join(_CASA, ".npm-global", "bin", "claude"),
+    "/opt/homebrew/bin/claude",                          # Homebrew en Apple Silicon
+    "/usr/local/bin/claude",                             # Homebrew Intel, y npm global
+    "/usr/bin/claude",                                   # apt / dnf / apk
+])
+
+
+def buscar_cli(env=None):
+    """La ruta del comando `claude`, o None si no está en ningún lado conocido.
+
+    Se puede fijar con CLAUDE_BIN en el .env, para una instalación en un lugar que no
+    adivinamos. Devolver la RUTA y no un sí/no es lo que arregla el problema: con el
+    PATH pelado, invocar "claude" a secas falla aunque lo hayamos encontrado.
+    """
+    forzado = (env or {}).get("CLAUDE_BIN") or os.environ.get("CLAUDE_BIN")
+    if forzado:
+        forzado = os.path.expanduser(forzado)
+        return forzado if os.path.exists(forzado) else None
+    return shutil.which("claude") or next(
+        (r for r in CANDIDATOS_CLI if r and os.path.exists(r) and os.access(r, os.X_OK)),
+        None)
+
+
 def _elegir_modo(env, hay_cli=None):
     """Qué camino usar, y por qué. Devuelve 'claude' o 'api', o revienta explicando.
 
@@ -113,7 +155,7 @@ def _elegir_modo(env, hay_cli=None):
     """
     modo = (env.get("IA_MODO") or "auto").lower()
     if hay_cli is None:
-        hay_cli = bool(shutil.which("claude"))
+        hay_cli = bool(buscar_cli(env))
     # Dos nombres para lo mismo, igual que en el SDK oficial: los proveedores
     # compatibles suelen autenticar con un token Bearer en vez de una API key.
     hay_key = bool(env.get("ANTHROPIC_API_KEY") or env.get("ANTHROPIC_AUTH_TOKEN"))
@@ -155,7 +197,7 @@ def _elegir_modo(env, hay_cli=None):
 CONSIGNA = "Segui al pie de la letra las instrucciones que vienen en la entrada."
 
 
-def _por_cli(prompt, timeout):
+def _por_cli(prompt, timeout, binario=None):
     """El prompt por stdin, y en Windows sin abrir una ventana.
 
     Las dos cosas son por Windows, y ninguna se ve en macOS:
@@ -187,7 +229,9 @@ def _por_cli(prompt, timeout):
         extra["startupinfo"] = oculta
         extra["creationflags"] = subprocess.CREATE_NEW_CONSOLE
     try:
-        r = subprocess.run(["claude", "-p", CONSIGNA], input=prompt,
+        # La RUTA, no el nombre: con el PATH pelado de una app de escritorio,
+        # "claude" a secas no se resuelve aunque el binario exista.
+        r = subprocess.run([binario or "claude", "-p", CONSIGNA], input=prompt,
                            capture_output=True, text=True,
                            # Sin esto Windows decodifica la respuesta con la codepage
                            # local, y todo lo que devuelve el modelo viene en español.
@@ -293,7 +337,8 @@ def preguntar(prompt, timeout=TIMEOUT):
     """Le pasa el prompt al modelo y devuelve su texto. Lanza RuntimeError si algo falla."""
     env = _env()
     modo = _elegir_modo(env)
-    return _por_cli(prompt, timeout) if modo == "claude" else _por_api(prompt, timeout, env)
+    return (_por_cli(prompt, timeout, buscar_cli(env)) if modo == "claude"
+            else _por_api(prompt, timeout, env))
 
 
 def extraer_json(texto):
@@ -409,6 +454,29 @@ def _autochequeo():
             raise AssertionError(f"tendría que haber fallado con {malo}")
         except RuntimeError as e:
             assert pista in str(e), f"el error no dice cómo arreglarlo: {e}"
+
+    # El PATH pelado de una app de escritorio no puede dejar sin IA a una máquina que
+    # tiene el CLI instalado. Se simula con un binario propio en una carpeta candidata.
+    import tempfile
+    falso = os.path.join(tempfile.mkdtemp(), "claude")
+    open(falso, "w", encoding="utf-8").close()
+    os.chmod(falso, 0o755)
+    guardados = (CANDIDATOS_CLI[:], os.environ.get("PATH"), os.environ.pop("CLAUDE_BIN", None))
+    try:
+        CANDIDATOS_CLI[:] = [falso]
+        os.environ["PATH"] = "/usr/bin:/bin"          # el que da macOS al abrir por ícono
+        assert shutil.which("claude") is None, "el PATH de prueba no quedó pelado"
+        assert buscar_cli() == falso, "con el PATH pelado hay que ir a buscarlo igual"
+        assert _elegir_modo({}) == "claude", "una máquina con el CLI se quedó sin IA"
+        # Y lo que se declara a mano gana, aunque no exista nada mas.
+        CANDIDATOS_CLI[:] = []
+        assert buscar_cli({"CLAUDE_BIN": falso}) == falso, "ignoró CLAUDE_BIN del .env"
+        assert buscar_cli({"CLAUDE_BIN": "/no/existe"}) is None, "acepto una ruta que no existe"
+    finally:
+        CANDIDATOS_CLI[:], os.environ["PATH"] = guardados[0], guardados[1]
+        if guardados[2]:
+            os.environ["CLAUDE_BIN"] = guardados[2]
+        os.remove(falso)
 
     print("ia.py: todo OK")
 

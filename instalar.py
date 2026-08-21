@@ -32,6 +32,7 @@ import urllib.request
 import zipfile
 
 import config
+import ia
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 # El .env vive DENTRO de esta carpeta, al lado de los scripts. Antes vivía un nivel
@@ -93,7 +94,10 @@ def revisar_dependencias():
          "npm i -g @anthropic-ai/claude-code"),
         ("ffmpeg", "solo si vas a generar piezas en video", "brew install ffmpeg"),
     ]:
-        hay = bool(shutil.which(cmd))
+        # Para `claude` se usa la misma búsqueda que el panel, no `which` a secas: si
+        # acá dijera "ok" mirando el PATH del shell y el panel después no lo encontrara
+        # con su PATH de app, la persona tendría dos respuestas opuestas sobre lo mismo.
+        hay = bool(ia.buscar_cli()) if cmd == "claude" else bool(shutil.which(cmd))
         hallado[cmd] = hay
         print(f"  [{'ok' if hay else '--'}] {cmd:9} {para_que}")
         if not hay:
