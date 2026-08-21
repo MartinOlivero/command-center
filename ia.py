@@ -147,9 +147,36 @@ def _elegir_modo(env, hay_cli=None):
         "El resto del panel funciona igual sin esto.")
 
 
+# Lo único que va como argumento de la línea de comandos. El prompt entero —que lleva
+# los datos del panel adentro— viaja por la entrada estándar, donde no hay límite de
+# tamaño. `claude -p` pide una consigna como argumento y lee lo pipeado como contexto:
+# está documentado (code.claude.com/docs/en/cli-reference, `cat archivo | claude -p`) y
+# probado contra el CLI el 21/08/2026.
+CONSIGNA = "Segui al pie de la letra las instrucciones que vienen en la entrada."
+
+
 def _por_cli(prompt, timeout):
-    r = subprocess.run(["claude", "-p", prompt],
-                       capture_output=True, text=True, timeout=timeout)
+    """El prompt por stdin, y en Windows sin abrir una ventana.
+
+    Las dos cosas son por Windows, y ninguna se ve en macOS:
+
+    - La línea de comandos de Windows se corta en 8191 caracteres. Estos prompts
+      llevan los datos del panel adentro: el de una cuenta con historia pasa los
+      20.000. Como argumento se romperían; por stdin no hay límite.
+    - Un proceso de consola lanzado desde el panel —que corre sin consola, con
+      pythonw.exe— abre una ventana negra por cada llamada al modelo. Peor que fea:
+      como no dice nada, la persona la cierra, y al cerrarla se lleva puesto el
+      análisis que estaba corriendo ahí adentro.
+    """
+    extra = {}
+    if os.name == "nt":
+        extra["creationflags"] = subprocess.CREATE_NO_WINDOW
+    r = subprocess.run(["claude", "-p", CONSIGNA], input=prompt,
+                       capture_output=True, text=True,
+                       # Sin esto Windows decodifica la respuesta con la codepage
+                       # local, y todo lo que devuelve el modelo viene en español.
+                       encoding="utf-8", errors="replace",
+                       timeout=timeout, **extra)
     if r.returncode != 0:
         raise RuntimeError(f"el CLI de Claude falló: {(r.stderr or '').strip()[:300]}")
     return r.stdout.strip()
@@ -271,6 +298,26 @@ def _autochequeo():
     assert _elegir_modo({"IA_MODO": "claude"}, con_cli) == "claude"
     assert _elegir_modo({"ANTHROPIC_AUTH_TOKEN": "tok"}, sin_cli) == "api", \
         "un token Bearer también es credencial válida"
+
+    # El prompt viaja por stdin, NUNCA como argumento: la línea de comandos de Windows
+    # se corta en 8191 caracteres y estos prompts la pasan largo apenas la cuenta tiene
+    # algo de historia. Se prueba sin llamar al CLI de verdad.
+    visto = {}
+    real = subprocess.run
+
+    def espia(cmd, **kw):
+        visto.update(cmd=cmd, kw=kw)
+        return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
+
+    subprocess.run = espia
+    try:
+        _por_cli("x" * 30000, 5)
+    finally:
+        subprocess.run = real
+    assert max(len(a) for a in visto["cmd"]) < 200, \
+        "el prompt no puede ir como argumento: Windows lo corta en 8191"
+    assert visto["kw"]["input"] == "x" * 30000, "el prompt tiene que ir por stdin"
+    assert visto["kw"]["encoding"] == "utf-8", "la respuesta del modelo viene en español"
 
     # La dirección: por defecto Anthropic, y sin barras dobles al apuntar a otro lado.
     assert _url({}) == "https://api.anthropic.com/v1/messages"

@@ -40,7 +40,7 @@ PRODUCTO = "COMMAND CENTER"
 
 # Versión del paquete. Se muestra en el panel y en el instalador: es lo primero que hay
 # que preguntar cuando alguien reporta un problema, y lo que compara `--actualizar`.
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 # Lo que se usa cuando no hay config.json (o cuando le falta una clave). Es también la
 # documentación de qué se puede configurar: si algo no está acá, no es configurable.
