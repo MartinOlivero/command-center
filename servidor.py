@@ -427,7 +427,7 @@ def _token_youtube():
 def reanalizar():
     """Otra lectura de la IA sobre los datos que YA están, sin volver a bajar nada.
 
-    Ojo con lo que ahorra y lo que no: medido, tarda unos 3 minutos, MÁS que el
+    Ojo con lo que ahorra y lo que no: medido, tarda entre 3 y 6 minutos, MÁS que el
     botón Actualizar. No es un atajo por tiempo. Lo que ahorra es cuota de las
     APIs de Meta y de YouTube, que son limitadas y no se recuperan; el tiempo del
     modelo, no. Sirve para pedir una segunda lectura de los mismos números o
@@ -442,7 +442,11 @@ def reanalizar():
     try:
         r = subprocess.run([sys.executable, os.path.join(AQUI, "analista.py")],
                            capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=330)
+                           encoding="utf-8", errors="replace",
+                           # Derivado y no un número acá: si esta espera queda por
+                           # debajo del techo del modelo, matamos al analista con el
+                           # análisis ya pago y sin poder explicar por qué.
+                           timeout=ia.TIMEOUT + ia.MARGEN)
         if r.returncode != 0:
             raise RuntimeError(r.stderr.strip()[-300:] or r.stdout.strip()[-300:]
                                or "falló el analista")
@@ -776,7 +780,11 @@ no hay nada que mostrar. Es cuestión de un minuto:</p>
                 print(f"  actualizando {red or 'las tres redes'}...")
                 return self.responder(200, actualizar(red))
         except subprocess.TimeoutExpired:
-            return self.responder(504, {"error": "la IA tardó demasiado"})
+            # Con la espera derivada de ia.TIMEOUT esto ya no debería pasar por una
+            # corrida lenta: si pasa, el proceso quedó colgado de verdad.
+            return self.responder(504, {"error": "la IA no contestó nunca. Probá de "
+                                        "nuevo; si se repite, revisá que `claude` "
+                                        "funcione a mano en una terminal"})
         except Exception as e:
             return self.responder(500, {"error": str(e)[:300]})
         self.responder(404, {"error": "ruta desconocida"})

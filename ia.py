@@ -271,7 +271,25 @@ def _por_api(prompt, timeout, env):
     return "".join(partes).strip()
 
 
-def preguntar(prompt, timeout=300):
+# Cuánto se le da al modelo para contestar, y cuánto tiene que esperarlo quien lanza
+# al analista como subproceso. La relación entre los dos es lo importante: el de
+# afuera SIEMPRE mayor que el de adentro.
+#
+# Medido en la instalación de un cliente el 21/08/2026: el análisis tardó 333s de
+# punta a punta (panel escrito 13:51:05, análisis 13:56:38). El servidor esperaba
+# 330 y el modelo tenía techo 300, así que la carrera se perdía por segundos: el
+# padre mataba al analista justo antes de que terminara, se tiraba a la basura el
+# trabajo del modelo ya hecho y encima ganaba el mensaje genérico del servidor
+# ("la IA tardó demasiado") en vez del que explica qué pasó.
+#
+# 420 porque 300 no alcanzaba en una cuenta real, y MARGEN porque el hijo no es solo
+# la llamada al modelo: antes arranca Python, lee panel.html y levanta el CLI (Node),
+# y después escribe el JSON. Ese tiempo también hay que esperarlo.
+TIMEOUT = 420
+MARGEN = 60
+
+
+def preguntar(prompt, timeout=TIMEOUT):
     """Le pasa el prompt al modelo y devuelve su texto. Lanza RuntimeError si algo falla."""
     env = _env()
     modo = _elegir_modo(env)
@@ -292,7 +310,7 @@ def extraer_json(texto):
     return json.loads(m.group(1))
 
 
-def preguntar_json(prompt, timeout=300):
+def preguntar_json(prompt, timeout=TIMEOUT):
     """`preguntar` + `extraer_json`, que es lo que hacen los cuatro llamadores."""
     return extraer_json(preguntar(prompt, timeout))
 

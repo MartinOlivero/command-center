@@ -4103,7 +4103,7 @@ function botonAnalizar() {
   if (!boton) return;
   boton.onclick = async () => {
     boton.disabled = true;
-    msg.textContent = 'releyendo los mismos datos... puede tardar 3 minutos';
+    msg.textContent = 'releyendo los mismos datos... puede tardar varios minutos';
     try {
       const res = await fetch('/analizar', { method: 'POST' });
       const r = await res.json().catch(() => ({}));

@@ -188,9 +188,9 @@ Como leer las metricas (esto define si el analisis sirve o no):
   esa red: el analisis tiene que hacerse cargo de eso antes que de nada.
 - Nada de texto fuera del JSON."""
 
-    print("Analizando con IA (puede tardar ~30s)...")
+    print("Analizando con IA (puede tardar varios minutos)...")
     try:
-        analisis = ia.preguntar_json(prompt, timeout=300)
+        analisis = ia.preguntar_json(prompt, timeout=ia.TIMEOUT)
     except (RuntimeError, json.JSONDecodeError) as e:
         sys.exit(f"No se pudo analizar: {e}")
 
