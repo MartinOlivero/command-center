@@ -193,6 +193,22 @@ def html_pieza(pieza):
 """
 
 
+def _nombre(pieza):
+    return pieza.get("titulo", "pieza").replace(" ", "-")
+
+
+def carpeta_de(ruta_json):
+    """En qué carpeta caen los PNG de esta pieza.
+
+    Existe para que el servidor pueda mostrar las imágenes en el panel sin tener que
+    adivinar el nombre —que sale del título de la pieza— ni parsear lo que imprime
+    el render. Una sola definición: si mañana el nombre se arma distinto, cambia acá
+    y el panel sigue encontrando las imágenes.
+    """
+    with open(ruta_json, encoding="utf-8") as f:
+        return os.path.join(SALIDA, _nombre(json.load(f)))
+
+
 def render(ruta_json):
     """JSON -> HTML -> PNG por slide, con Chrome headless."""
     pieza = json.load(open(ruta_json, encoding="utf-8"))
@@ -210,7 +226,7 @@ def render(ruta_json):
                  'navegador" en config.json.')
 
     an, al = FORMATOS[formato]
-    nombre = pieza.get("titulo", "pieza").replace(" ", "-")
+    nombre = _nombre(pieza)
     destino = os.path.join(SALIDA, nombre)
     os.makedirs(destino, exist_ok=True)
 

@@ -1167,6 +1167,15 @@ img.con-tip, .ads-ret.con-tip, .aviso.con-tip, .copy.con-tip, summary.con-tip {
   background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.09); transition: all .15s }
 .abrir button:hover { color: #fff; border-color: var(--c) }
 .slides-prev { margin-top: 13px }
+/* Las imágenes ya renderizadas, para verlas sin salir del panel. */
+.tiras { margin-top: 14px; display: flex; gap: 9px; flex-wrap: wrap }
+.tiras a { position: relative; display: block; border-radius: 9px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,.1); transition: transform .15s, border-color .15s }
+.tiras a:hover { transform: translateY(-3px); border-color: var(--c, var(--hud)) }
+.tiras img { display: block; width: 94px; height: auto; background: #000 }
+.tiras span { position: absolute; left: 6px; top: 6px; font-family: var(--mono);
+  font-size: 10px; padding: 2px 6px; border-radius: 5px; color: #fff;
+  background: rgba(0,0,0,.62) }
 .sin-ideas { padding: 34px; text-align: center; color: var(--texto-3) }
 
 /* ---------- piezas propuestas por la IA ---------- */
@@ -4266,8 +4275,34 @@ analisisIA(DATOS.ia);
         });
         const q = await res.json();
         if (!res.ok) throw new Error(q.error);
-        $('#g-render-res').innerHTML = `<div class="cta-b" style="margin-top:12px">
-          <b>Listo</b><span>${(q.salida || '').split('\n').pop()}</span></div>`;
+        // Las miniaturas se piden al mismo servidor que sirve el panel. Antes acá
+        // se mostraba la ruta en el disco: para ver lo que acababas de generar
+        // había que copiarla e irla a buscar al Finder.
+        const imgs = (q.imagenes || []).map((u, k) => `<a href="${u}" target="_blank" rel="noopener">
+          <img src="${u}" alt="Slide ${k + 1}" loading="lazy">
+          <span>${String(k + 1).padStart(2, '0')}</span></a>`).join('');
+        $('#g-render-res').innerHTML = `
+          ${imgs ? `<div class="tiras">${imgs}</div>` : ''}
+          <div class="cta-b"><b>Listo</b><span>${(q.imagenes || []).length} imágenes
+            listas para subir. Tocá una para verla en tamaño real.</span></div>
+          <div class="abrir"><button id="g-abrir">Abrir carpeta</button></div>`;
+        const ab = $('#g-abrir');
+        if (ab) ab.onclick = async () => {
+          ab.disabled = true;
+          try {
+            // La abre el servidor: un link file:// desde una página http:// lo
+            // bloquea el navegador y no pasaría nada al hacer clic.
+            const s = await fetch('/abrir', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ carpeta: q.carpeta }),
+            });
+            if (!s.ok) throw new Error(((await s.json()) || {}).error);
+            ab.textContent = 'Abierta';
+          } catch (e) {
+            ab.textContent = e.message || 'no pude abrirla';
+          }
+          setTimeout(() => { ab.disabled = false; ab.textContent = 'Abrir carpeta'; }, 2500);
+        };
         br.textContent = 'Listo';
       } catch (e) {
         $('#g-render-res').innerHTML = `<div class="aviso-srv">${e.message}</div>`;

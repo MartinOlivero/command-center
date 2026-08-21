@@ -72,4 +72,14 @@ assert espera > ia.TIMEOUT, (
     f"el servidor espera {espera}s y el modelo tiene techo {ia.TIMEOUT}s: "
     "el analisis se pierde justo cuando termina")
 
+# ── /abrir no puede abrir cualquier carpeta de la maquina ─────────────────────
+# El nombre llega por un POST y termina en una llamada al sistema operativo. Recortar
+# con basename() NO alcanza: basename("../../..") devuelve "..", que se sale igual.
+for intento in ("../../..", "..", "/etc", "no-existe", "../piezas-ia", ""):
+    try:
+        servidor.abrir_carpeta(intento)
+        raise SystemExit(f"/abrir acepto {intento!r}: se sale de la carpeta de piezas")
+    except RuntimeError:
+        pass
+
 print("OK — todos los checks pasaron")

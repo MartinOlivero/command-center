@@ -32,12 +32,14 @@ import re
 import socketserver
 import subprocess
 import sys
+import urllib.parse
 import threading
 import time
 import webbrowser
 
 import auditoria
 import config
+import generador
 import entorno
 import ia
 
@@ -666,7 +668,55 @@ def render(archivo):
                        encoding="utf-8", errors="replace", timeout=300)
     if r.returncode != 0:
         raise RuntimeError(r.stderr[:300] or "falló el render")
-    return {"salida": r.stdout.strip()}
+    # Las imágenes se muestran EN el panel. No hace falta nada nuevo para servirlas:
+    # este servidor ya publica la carpeta del panel, así que alcanza con decirle al
+    # navegador por qué URL pedirlas. Antes se devolvía sólo la ruta en el disco, que
+    # obligaba a copiarla a mano e ir a buscarla al Finder.
+    carpeta = generador.carpeta_de(ruta)
+    return {"salida": r.stdout.strip(), "carpeta": os.path.basename(carpeta),
+            "imagenes": _urls_de(carpeta)}
+
+
+def _urls_de(carpeta):
+    """Las URLs con las que el navegador puede pedir los PNG de esa carpeta.
+
+    Se arma con relpath y no escribiendo "piezas/" a mano: si el generador cambia
+    dónde deja las imágenes, esto sigue apuntando bien. quote() por segmento porque
+    el nombre sale del título de la pieza y trae espacios, acentos y ñ.
+    """
+    try:
+        rel = os.path.relpath(carpeta, AQUI)
+    except ValueError:      # en Windows, si quedara en otra unidad
+        return []
+    return ["/" + "/".join(urllib.parse.quote(t) for t in rel.split(os.sep) + [f])
+            for f in sorted(os.listdir(carpeta)) if f.lower().endswith(".png")]
+
+
+def abrir_carpeta(nombre):
+    """Abre la carpeta de una pieza en el Finder / Explorador de archivos.
+
+    Por qué lo hace el servidor y no un link: un `file://` clickeado desde una página
+    servida por http:// está bloqueado en Chrome y Edge, no pasa nada y no hay forma
+    de habilitarlo. Como este servidor corre en la misma máquina que el navegador,
+    abrirla es cosa suya.
+    """
+    # Esto entra por un POST y termina en una llamada al sistema operativo, así que
+    # no alcanza con recortar el nombre: `basename("../../..")` devuelve "..", que se
+    # sale igual de la carpeta de piezas. Lo que decide es dónde quedó parada la ruta
+    # una vez resuelta — tiene que estar ADENTRO de la carpeta de piezas y no ser la
+    # carpeta misma.
+    raiz = os.path.realpath(generador.SALIDA)
+    carpeta = os.path.realpath(os.path.join(raiz, os.path.basename(nombre)))
+    if os.path.dirname(carpeta) != raiz or not os.path.isdir(carpeta):
+        raise RuntimeError("esa carpeta todavía no existe")
+    if hasattr(os, "startfile"):
+        # La forma de Windows. `explorer.exe` sirve igual pero devuelve código 1
+        # aunque haya funcionado, y eso se vería en el panel como un error falso.
+        os.startfile(carpeta)
+    else:
+        subprocess.run(["open" if sys.platform == "darwin" else "xdg-open", carpeta],
+                       check=True)
+    return {"abierta": os.path.basename(carpeta)}
 
 
 class Manejador(http.server.SimpleHTTPRequestHandler):
@@ -758,6 +808,8 @@ no hay nada que mostrar. Es cuestión de un minuto:</p>
                 return self.responder(200, generar(pedido))
             if self.path == "/render":
                 return self.responder(200, render(pedido.get("archivo", "")))
+            if self.path == "/abrir":
+                return self.responder(200, abrir_carpeta(pedido.get("carpeta", "")))
             if self.path == "/auditar":
                 print("  auditando campañas...")
                 return self.responder(200, auditar())
