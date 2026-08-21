@@ -40,7 +40,7 @@ PRODUCTO = "COMMAND CENTER"
 
 # Versión del paquete. Se muestra en el panel y en el instalador: es lo primero que hay
 # que preguntar cuando alguien reporta un problema, y lo que compara `--actualizar`.
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 # Lo que se usa cuando no hay config.json (o cuando le falta una clave). Es también la
 # documentación de qué se puede configurar: si algo no está acá, no es configurable.
@@ -163,7 +163,7 @@ def _autochequeo():
     assert red_activa({"redes": {}}, "youtube") is True
 
     # Un JSON roto no puede dejar sin panel a nadie.
-    with open(tmp, "w") as f:
+    with open(tmp, "w", encoding="utf-8") as f:
         f.write("{esto no es json")
     assert cargar(tmp)["dias"] == 30, "un config roto tiró abajo la configuración entera"
 

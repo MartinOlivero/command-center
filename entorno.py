@@ -40,7 +40,12 @@ def leer(ruta=RUTA):
     """
     datos = {}
     if os.path.exists(ruta):
-        with open(ruta, encoding="utf-8") as f:
+        # errors="replace" y no el modo estricto: un instalador viejo en Windows dejaba
+        # este archivo en cp1252, y el acento de "Métricas" —en un COMENTARIO, ni
+        # siquiera en una credencial— tiraba abajo el panel entero con
+        # UnicodeDecodeError. Un byte que no se entiende no puede costar un panel:
+        # los valores que importan (tokens, IDs) son ASCII y se leen igual.
+        with open(ruta, encoding="utf-8", errors="replace") as f:
             for linea in f:
                 linea = linea.strip()
                 if not linea or linea.startswith("#") or "=" not in linea:
@@ -107,7 +112,43 @@ def _autochequeo():
     finally:
         del os.environ["SIMPLE"]
 
+    # Un .env escrito por Windows (cp1252) no puede dejar sin panel a nadie. Pasó:
+    # el instalador guardaba el archivo en la codepage local, el acento de un
+    # comentario no era UTF-8 válido y todo lo que necesitaba credenciales moría.
+    with open(tmp, "w", encoding="cp1252") as f:
+        f.write("# Credenciales del Panel de Métricas.\nIG_PAGE_TOKEN=EAA123\n")
+    assert leer(tmp)["IG_PAGE_TOKEN"] == "EAA123", "un .env en cp1252 tiró abajo el panel"
+
+    _sin_encoding()
     print("entorno.py: todo OK")
+
+
+def _sin_encoding():
+    """Ningún archivo del panel puede abrir texto sin decir en qué idioma está.
+
+    Vive acá porque es el mismo bug de arriba visto desde el otro lado: en macOS
+    `open()` sin `encoding` es UTF-8 y no se nota nunca; en Windows es cp1252 y
+    rompe. La única forma de que no vuelva es que un olvido falle en la Mac.
+    """
+    import ast
+    import glob
+
+    culpables = []
+    for py in glob.glob(os.path.join(AQUI, "*.py")):
+        arbol = ast.parse(open(py, encoding="utf-8").read(), filename=py)
+        for nodo in ast.walk(arbol):
+            if not (isinstance(nodo, ast.Call)
+                    and isinstance(nodo.func, ast.Name) and nodo.func.id == "open"):
+                continue
+            if any(k.arg == "encoding" for k in nodo.keywords):
+                continue
+            # Los binarios ("rb"/"wb") son bytes, no texto: no llevan encoding.
+            modo = nodo.args[1] if len(nodo.args) > 1 else None
+            if isinstance(modo, ast.Constant) and "b" in str(modo.value):
+                continue
+            culpables.append(f"{os.path.basename(py)}:{nodo.lineno}")
+    assert not culpables, ("open() de texto sin encoding= (rompe en Windows): "
+                           + ", ".join(culpables))
 
 
 if __name__ == "__main__":

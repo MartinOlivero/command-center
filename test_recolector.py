@@ -80,7 +80,7 @@ assert not set(panel.CON_SERIE_DIARIA) & set(panel.SOLO_TOTAL), \
     "una metrica no puede estar en los dos modos de la API"
 
 # --- el dato tiene que llegar al HTML ---
-plantilla = open(os.path.join(AQUI, "plantilla.html")).read()
+plantilla = open(os.path.join(AQUI, "plantilla.html"), encoding="utf-8").read()
 assert plantilla.count("/*DATOS*/null") == 1, "falta (o sobra) el hueco donde se inyectan los datos"
 
 falso = {"generado": "2026-08-02T17:00", "dias": 30, "perfil": {"username": "x"},

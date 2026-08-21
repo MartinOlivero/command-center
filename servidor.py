@@ -399,7 +399,8 @@ def _token_youtube():
         _env.get("YT_TOKEN_FILE") or os.path.join(AQUI, "youtube_token.json"))
     if not os.path.exists(ruta):
         return None
-    tk = json.load(open(ruta))
+    with open(ruta, encoding="utf-8") as f:
+        tk = json.load(f)
     if not tk.get("refresh_token"):
         return tk.get("access_token")
     # Del .env, nunca del código: si estuvieran acá se publicarían con el repo.

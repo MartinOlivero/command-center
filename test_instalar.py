@@ -225,9 +225,11 @@ assert not llamadas, "no hace falta ir a la API si el dato ya está"
 import os, tempfile
 tmp = tempfile.mkdtemp()
 instalar.ENV = os.path.join(tmp, ".env")
-open(instalar.ENV, "w").write("IG_APP_SECRET=elbueno\nOTRA_COSA=intacta\n")
+open(instalar.ENV, "w", encoding="utf-8").write(
+    "IG_APP_SECRET=elbueno\nOTRA_COSA=intacta\n")
 instalar.guardar_env({"IG_PAGE_TOKEN": "nuevo", "IG_APP_SECRET": "", "cuenta": "@x"})
-guardado = dict(l.strip().split("=", 1) for l in open(instalar.ENV)
+guardado = dict(l.strip().split("=", 1)
+                for l in open(instalar.ENV, encoding="utf-8")
                 if "=" in l and not l.startswith("#"))
 assert guardado["IG_APP_SECRET"] == "elbueno", "un valor vacio no puede pisar uno bueno"
 assert guardado["OTRA_COSA"] == "intacta", "no puede tocar credenciales de otras cosas"
@@ -278,8 +280,8 @@ import io, zipfile
 
 destino = tempfile.mkdtemp()
 instalar.AQUI = destino
-open(os.path.join(destino, "historico.jsonl"), "w").write("MIS DATOS DE MESES")
-open(os.path.join(destino, "recolector.py"), "w").write("version vieja")
+open(os.path.join(destino, "historico.jsonl"), "w", encoding="utf-8").write("MIS DATOS DE MESES")
+open(os.path.join(destino, "recolector.py"), "w", encoding="utf-8").write("version vieja")
 
 crudo = io.BytesIO()
 with zipfile.ZipFile(crudo, "w") as z:
@@ -291,9 +293,9 @@ crudo.seek(0)
 instalar.urllib.request.urlopen = lambda *a, **k: io.BytesIO(crudo.getvalue())
 assert instalar.actualizar() == 0
 
-assert open(os.path.join(destino, "recolector.py")).read() == "version nueva", \
+assert open(os.path.join(destino, "recolector.py"), encoding="utf-8").read() == "version nueva", \
     "el codigo tiene que actualizarse"
-assert open(os.path.join(destino, "historico.jsonl")).read() == "MIS DATOS DE MESES", \
+assert open(os.path.join(destino, "historico.jsonl"), encoding="utf-8").read() == "MIS DATOS DE MESES", \
     "el historico NO se puede pisar: esos dias no se pueden volver a pedir a la API"
 assert os.path.exists(os.path.join(destino, "piezas", "logo.svg")), \
     "tiene que crear los subdirectorios que vengan en el zip"
@@ -327,7 +329,7 @@ def explota(*a, **k):
     raise instalar.urllib.error.URLError("sin internet")
 instalar.urllib.request.urlopen = explota
 assert instalar.actualizar() == 1
-assert open(os.path.join(destino, "recolector.py")).read() == "version nueva", \
+assert open(os.path.join(destino, "recolector.py"), encoding="utf-8").read() == "version nueva", \
     "si falla la descarga, no se toca nada"
 
 # ── el acceso de Windows ────────────────────────────────────────────────────

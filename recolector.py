@@ -65,7 +65,9 @@ TRAMO_MAX = 30
 def credenciales():
     """Lee el token y el ID de cuenta del .env del proyecto (nunca del HTML)."""
     datos = {}
-    with open(os.path.join(RAIZ, ".env")) as f:
+    # errors="replace": un .env escrito por un instalador viejo en Windows viene en
+    # cp1252 y el acento del comentario lo hacia explotar. Los valores son ASCII.
+    with open(os.path.join(RAIZ, ".env"), encoding="utf-8", errors="replace") as f:
         for linea in f:
             if "=" in linea and not linea.strip().startswith("#"):
                 k, v = linea.strip().split("=", 1)
@@ -88,7 +90,8 @@ def credenciales():
     if ruta_token and not datos.get("META_ADS_TOKEN"):
         clave = datos.get("META_ADS_TOKEN_KEY", "META_ACCESS_TOKEN")
         try:
-            for linea in open(os.path.expanduser(ruta_token)):
+            for linea in open(os.path.expanduser(ruta_token),
+                              encoding="utf-8", errors="replace"):
                 if linea.startswith(f"{clave}="):
                     datos["META_ADS_TOKEN"] = linea.split("=", 1)[1].strip().strip('"').strip("'")
                     break
@@ -447,7 +450,8 @@ def yt_refrescar():
     """
     if not os.path.exists(YT_TOKEN):
         return None
-    tk = json.load(open(YT_TOKEN))
+    with open(YT_TOKEN, encoding="utf-8") as f:
+        tk = json.load(f)
     if not tk.get("refresh_token"):
         return tk.get("access_token")
     params = urllib.parse.urlencode({
@@ -457,7 +461,8 @@ def yt_refrescar():
         req = urllib.request.Request("https://oauth2.googleapis.com/token", data=params)
         with urllib.request.urlopen(req, timeout=25) as r:
             tk["access_token"] = json.loads(r.read())["access_token"]
-        json.dump(tk, open(YT_TOKEN, "w"))
+        with open(YT_TOKEN, "w", encoding="utf-8") as f:
+            json.dump(tk, f)
     except Exception:
         pass          # si falla el refresco probamos con el token que haya
     return tk.get("access_token")
@@ -1805,13 +1810,14 @@ def main():
                 json.dump(pieza, f, ensure_ascii=False, indent=1)
 
     paso("[escribiendo el panel]")
-    plantilla = open(os.path.join(AQUI, "plantilla.html")).read()
+    with open(os.path.join(AQUI, "plantilla.html"), encoding="utf-8") as f:
+        plantilla = f.read()
     # Incrustamos el JSON en el HTML: un solo archivo, sin servidor, sin CORS.
     salida = plantilla.replace(
         "/*DATOS*/null",
         json.dumps(datos, ensure_ascii=False).replace("</", "<\\/"))
     destino = PANEL_SALIDA
-    with open(destino, "w") as f:
+    with open(destino, "w", encoding="utf-8") as f:
         f.write(salida)
 
     print(f"\nListo: {destino}")

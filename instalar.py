@@ -20,6 +20,7 @@ No pisa nada sin preguntar. Se puede correr de nuevo para cambiar la configuraci
 import glob
 import io
 import json
+import locale
 import os
 import shutil
 import subprocess
@@ -536,7 +537,7 @@ def guardar_env(cred):
         shutil.copy(ENV, ENV + ".backup")
         print(f"  (copia de seguridad en {os.path.basename(ENV)}.backup)")
         previas = {}
-        for linea in open(ENV):
+        for linea in open(ENV, encoding="utf-8", errors="replace"):
             if "=" in linea and not linea.strip().startswith("#"):
                 k, v = linea.strip().split("=", 1)
                 previas[k] = v
@@ -546,7 +547,9 @@ def guardar_env(cred):
     else:
         previas = {k: v for k, v in cred.items() if k != "cuenta" and v}
 
-    with open(ENV, "w") as f:
+    # encoding explicito: sin esto Windows escribia el archivo en cp1252 y el acento
+    # de "Metricas" dejaba el panel entero sin poder leer sus credenciales.
+    with open(ENV, "w", encoding="utf-8") as f:
         f.write("# Credenciales del Panel de Métricas. NO se versiona ni se comparte.\n")
         for k, v in previas.items():
             f.write(f"{k}={v}\n")
@@ -820,7 +823,7 @@ def _acceso_mac(escritorio):
     os.makedirs(recursos)
 
     ejecutable = os.path.join(macos, "lanzar")
-    with open(ejecutable, "w") as f:
+    with open(ejecutable, "w", encoding="utf-8") as f:
         # Sin ventana de Terminal: el panel es una app, no un script. Si ya hay un
         # servidor vivo se abre el navegador y listo — dos doble clics no levantan dos
         # servidores. El de adentro se apaga solo cuando se cierra la pestaña.
@@ -863,7 +866,8 @@ osascript -e 'display alert "No pude abrir el panel" message "Mirá el archivo p
     icono = os.path.join(AQUI, "icono.icns")
     if os.path.exists(icono):
         shutil.copy(icono, os.path.join(recursos, "icono.icns"))
-    with open(os.path.join(app, "Contents", "Info.plist"), "w") as f:
+    with open(os.path.join(app, "Contents", "Info.plist"), "w",
+              encoding="utf-8") as f:
         f.write(PLIST.format(nombre=ACCESO, sello=SELLO))
     return app
 
@@ -908,7 +912,11 @@ def _acceso_windows(escritorio):
         return destino
 
     destino = os.path.join(escritorio, f"{ACCESO}.bat")
-    with open(destino, "w") as f:
+    # ponytail: este va en la codepage de la consola, NO en UTF-8. Un .bat lo lee
+    # cmd.exe, que no habla UTF-8: si el usuario se llama "Martin" da igual, pero si
+    # se llama "Jose" la ruta con acento tiene que salir como cmd espera leerla.
+    with open(destino, "w",
+              encoding=locale.getpreferredencoding(False)) as f:
         f.write(f'@echo off\r\ncd /d "{AQUI}"\r\ncall "Abrir panel.bat"\r\n')
     return destino
 
@@ -1123,7 +1131,7 @@ def leer_env():
     if not os.path.exists(ENV):
         return {}
     fuera = {}
-    for linea in open(ENV):
+    for linea in open(ENV, encoding="utf-8", errors="replace"):
         linea = linea.strip()
         if "=" in linea and not linea.startswith("#"):
             k, v = linea.split("=", 1)

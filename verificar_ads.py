@@ -49,7 +49,7 @@ def token_del_env():
     ruta = os.path.join(RAIZ, ".env")
     if not os.path.exists(ruta):
         return None
-    for linea in open(ruta):
+    for linea in open(ruta, encoding="utf-8", errors="replace"):
         if linea.startswith("META_ACCESS_TOKEN="):
             return linea.split("=", 1)[1].strip().strip('"').strip("'")
     return None
