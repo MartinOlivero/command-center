@@ -137,18 +137,29 @@ def _sin_encoding():
     for py in glob.glob(os.path.join(AQUI, "*.py")):
         arbol = ast.parse(open(py, encoding="utf-8").read(), filename=py)
         for nodo in ast.walk(arbol):
-            if not (isinstance(nodo, ast.Call)
-                    and isinstance(nodo.func, ast.Name) and nodo.func.id == "open"):
+            if not isinstance(nodo, ast.Call):
                 continue
-            if any(k.arg == "encoding" for k in nodo.keywords):
+            claves = {k.arg for k in nodo.keywords}
+            if "encoding" in claves:
                 continue
-            # Los binarios ("rb"/"wb") son bytes, no texto: no llevan encoding.
-            modo = nodo.args[1] if len(nodo.args) > 1 else None
-            if isinstance(modo, ast.Constant) and "b" in str(modo.value):
-                continue
-            culpables.append(f"{os.path.basename(py)}:{nodo.lineno}")
-    assert not culpables, ("open() de texto sin encoding= (rompe en Windows): "
-                           + ", ".join(culpables))
+
+            if isinstance(nodo.func, ast.Name) and nodo.func.id == "open":
+                # Los binarios ("rb"/"wb") son bytes, no texto: no llevan encoding.
+                modo = nodo.args[1] if len(nodo.args) > 1 else None
+                if isinstance(modo, ast.Constant) and "b" in str(modo.value):
+                    continue
+                culpables.append(f"{os.path.basename(py)}:{nodo.lineno} open()")
+
+            # La otra puerta por donde entra la codepage de Windows: la salida de un
+            # subproceso decodificada con `text=True`. No explota como el open(), pero
+            # devuelve los acentos rotos, y todo lo que imprime este panel es español.
+            elif (isinstance(nodo.func, ast.Attribute)
+                    and nodo.func.attr in ("run", "Popen", "check_output")
+                    and claves & {"text", "universal_newlines"}):
+                culpables.append(f"{os.path.basename(py)}:{nodo.lineno} subprocess")
+
+    assert not culpables, ("texto sin encoding= explícito (la codepage de Windows no es "
+                           "UTF-8): " + ", ".join(culpables))
 
 
 if __name__ == "__main__":

@@ -102,7 +102,8 @@ def _curl(url, campos):
     contra los endpoints de Google (ya nos pasó al refrescar el token)."""
     datos = urllib.parse.urlencode(campos)
     r = subprocess.run(["curl", "-s", "-X", "POST", url, "-d", datos],
-                       capture_output=True, text=True, timeout=60)
+                       capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", timeout=60)
     try:
         return json.loads(r.stdout)
     except json.JSONDecodeError:
@@ -167,7 +168,8 @@ def ver():
     t = json.load(open(TOKEN, encoding="utf-8"))
     r = subprocess.run(
         ["curl", "-s", "https://www.googleapis.com/oauth2/v1/tokeninfo"
-         f"?access_token={t['access_token']}"], capture_output=True, text=True, timeout=30)
+         f"?access_token={t['access_token']}"], capture_output=True, text=True,
+         encoding="utf-8", errors="replace", timeout=30)
     try:
         real = json.loads(r.stdout).get("scope", "(el token venció)")
     except json.JSONDecodeError:

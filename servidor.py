@@ -191,7 +191,8 @@ def actualizar(red=None):
     if not _actualizando.acquire(blocking=False):
         raise RuntimeError("ya hay una actualización en curso")
     try:
-        r = subprocess.run(orden, capture_output=True, text=True, timeout=600)
+        r = subprocess.run(orden, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=600)
         if r.returncode != 0:
             # El recolector avisa los problemas por stderr; mostramos el final, que es
             # donde está el error real y no el rastro de llamadas.
@@ -415,7 +416,8 @@ def _token_youtube():
         "refresh_token": tk["refresh_token"], "grant_type": "refresh_token"})
     # curl y no urllib: en esta Mac el handshake TLS contra Google falla con urllib.
     r = subprocess.run(["curl", "-s", "-X", "POST", "https://oauth2.googleapis.com/token",
-                        "-d", datos], capture_output=True, text=True, timeout=40)
+                        "-d", datos], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", timeout=40)
     try:
         return json.loads(r.stdout).get("access_token") or tk.get("access_token")
     except json.JSONDecodeError:
@@ -439,7 +441,8 @@ def reanalizar():
         raise RuntimeError("ya hay un análisis en curso")
     try:
         r = subprocess.run([sys.executable, os.path.join(AQUI, "analista.py")],
-                           capture_output=True, text=True, timeout=330)
+                           capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=330)
         if r.returncode != 0:
             raise RuntimeError(r.stderr.strip()[-300:] or r.stdout.strip()[-300:]
                                or "falló el analista")
@@ -655,7 +658,8 @@ def render(archivo):
     if not os.path.exists(ruta):
         raise RuntimeError("no encuentro esa pieza")
     r = subprocess.run([sys.executable, os.path.join(AQUI, "generador.py"), "render", ruta],
-                       capture_output=True, text=True, timeout=300)
+                       capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", timeout=300)
     if r.returncode != 0:
         raise RuntimeError(r.stderr[:300] or "falló el render")
     return {"salida": r.stdout.strip()}

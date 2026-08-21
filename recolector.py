@@ -223,7 +223,8 @@ def duracion_video(media_id, url):
         r = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
              "-of", "csv=p=0", url],
-            capture_output=True, text=True, timeout=45)
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=45)
         seg = round(float(r.stdout.strip()), 1)
     except (OSError, ValueError, subprocess.SubprocessError):
         # Sin ffprobe instalado, o el enlace ya vencio. No es motivo para romper
