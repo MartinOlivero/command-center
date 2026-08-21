@@ -403,12 +403,15 @@ def _token_youtube():
         tk = json.load(f)
     if not tk.get("refresh_token"):
         return tk.get("access_token")
-    # Del .env, nunca del código: si estuvieran acá se publicarían con el repo.
-    if not (_env.get("YT_CLIENT_ID") and _env.get("YT_CLIENT_SECRET")):
+    # Nunca del código: si estuvieran acá se publicarían con el repo. Y por la misma
+    # puerta que `yt_token.py auth`, que acepta el .env o el JSON de Google Cloud:
+    # dos lecturas distintas de lo mismo es como YouTube se caía a la hora.
+    import yt_token
+    cid, secreto = yt_token.credenciales(obligatorias=False)
+    if not (cid and secreto):
         return tk.get("access_token")
     datos = urllib.parse.urlencode({
-        "client_id": _env["YT_CLIENT_ID"],
-        "client_secret": _env["YT_CLIENT_SECRET"],
+        "client_id": cid, "client_secret": secreto,
         "refresh_token": tk["refresh_token"], "grant_type": "refresh_token"})
     # curl y no urllib: en esta Mac el handshake TLS contra Google falla con urllib.
     r = subprocess.run(["curl", "-s", "-X", "POST", "https://oauth2.googleapis.com/token",

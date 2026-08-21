@@ -39,6 +39,7 @@ import historico
 import leads
 import senales
 import tiktok
+import yt_token
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 # El panel es a la vez la salida y la fuente de lo que se hereda al actualizar
@@ -437,8 +438,10 @@ def facebook(cred, desde, hasta):
 _YT = entorno.leer()
 YT_TOKEN = os.path.expanduser(
     _YT.get("YT_TOKEN_FILE") or os.path.join(AQUI, "youtube_token.json"))
-YT_CLIENT_ID = _YT.get("YT_CLIENT_ID", "")
-YT_SECRET = _YT.get("YT_CLIENT_SECRET", "")
+# Del mismo lugar que las pide `yt_token.py auth`, y no solo del .env: si no,
+# quien deja el JSON de Google en la carpeta consigue el token pero no lo puede
+# refrescar, y YouTube se cae a la hora sin explicar nada.
+YT_CLIENT_ID, YT_SECRET = yt_token.credenciales(obligatorias=False)
 YTA = "https://youtubeanalytics.googleapis.com/v2/reports?"
 
 
@@ -454,6 +457,10 @@ def yt_refrescar():
         tk = json.load(f)
     if not tk.get("refresh_token"):
         return tk.get("access_token")
+    if not (YT_CLIENT_ID and YT_SECRET):
+        print("  YouTube: faltan YT_CLIENT_ID y YT_CLIENT_SECRET, no puedo renovar el\n"
+              "           permiso. Se arregla con:  python3 yt_token.py auth")
+        return tk.get("access_token")
     params = urllib.parse.urlencode({
         "client_id": YT_CLIENT_ID, "client_secret": YT_SECRET,
         "refresh_token": tk["refresh_token"], "grant_type": "refresh_token"}).encode()
@@ -463,8 +470,13 @@ def yt_refrescar():
             tk["access_token"] = json.loads(r.read())["access_token"]
         with open(YT_TOKEN, "w", encoding="utf-8") as f:
             json.dump(tk, f)
-    except Exception:
-        pass          # si falla el refresco probamos con el token que haya
+    except Exception as e:                                          # noqa: BLE001
+        # Antes esto era un `pass` mudo: se probaba igual con el token vencido, la
+        # API contestaba 401 y el panel mostraba YouTube desconectado sin decir por
+        # que. El token viejo se sigue intentando —a veces todavia sirve— pero el
+        # motivo tiene que quedar a la vista de quien mira correr esto.
+        print(f"  YouTube: no pude renovar el permiso ({e}).\n"
+              "           Si sigue sin aparecer:  python3 yt_token.py auth")
     return tk.get("access_token")
 
 
@@ -566,10 +578,20 @@ def youtube(desde, hasta=None):
             with urllib.request.urlopen(req, timeout=30) as r:
                 return json.loads(r.read())
         except urllib.error.HTTPError as e:
+            if e.code != 401:
+                raise RuntimeError(f"HTTP {e.code}")
+            # El 401 tiene dos causas y mandan a lugares distintos. La primera es la
+            # que más pasa y la que antes este mensaje no nombraba: el permiso de
+            # Google dura una hora y se renueva solo, pero para renovarlo hace falta
+            # el client_id/secret. Sin eso el panel funciona una hora y se apaga.
             raise RuntimeError(
-                "El token de YouTube está vencido o revocado (la app OAuth "
-                "sigue en modo Testing y Google los caduca cada ~7 días). "
-                "Hay que reautorizar a mano." if e.code == 401 else f"HTTP {e.code}")
+                "El permiso de YouTube venció y no lo puedo renovar solo: faltan "
+                "YT_CLIENT_ID y YT_CLIENT_SECRET (o el JSON de Google Cloud en la "
+                "carpeta del panel). Corré: python3 yt_token.py auth"
+                if not (YT_CLIENT_ID and YT_SECRET) else
+                "YouTube rechazó el permiso aunque intenté renovarlo: lo más probable "
+                "es que lo hayas revocado desde tu cuenta de Google, o que el permiso "
+                "que pide el panel haya cambiado. Se rehace con: python3 yt_token.py auth")
         except Exception as e:
             raise RuntimeError(str(e))
 

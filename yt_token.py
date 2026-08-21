@@ -66,14 +66,26 @@ SCOPES = ("https://www.googleapis.com/auth/youtube "
 REDIRECT = "http://localhost"
 
 
-def credenciales():
+def credenciales(obligatorias=True):
     """El client_id y el client_secret de Google, del .env o del JSON que baja
     Google Cloud. Se aceptan las dos formas porque son dos momentos distintos:
     quien acaba de crear el proyecto tiene el archivo descargado a mano; quien ya
-    lo configuró una vez lo tiene en el .env y no quiere volver a buscarlo."""
+    lo configuró una vez lo tiene en el .env y no quiere volver a buscarlo.
+
+    Esta es la ÚNICA fuente para todo el panel. Antes el recolector y el servidor
+    miraban solo el `.env` por su cuenta, y quien seguía las instrucciones al pie de
+    la letra —dejar el JSON en la carpeta y correr `yt_token.py auth`— conseguía el
+    token pero se quedaba sin poder refrescarlo: YouTube andaba una hora y después
+    aparecía desconectado sin decir por qué.
+
+    `obligatorias=False` para quien puede seguir sin YouTube: devuelve ("", "") en
+    vez de cortar el programa. El panel muestra las otras tres redes igual.
+    """
     if _ENV.get("YT_CLIENT_ID") and _ENV.get("YT_CLIENT_SECRET"):
         return _ENV["YT_CLIENT_ID"], _ENV["YT_CLIENT_SECRET"]
     if not os.path.exists(CLIENT):
+        if not obligatorias:
+            return "", ""
         sys.exit(
             "Faltan las credenciales de Google. Dos opciones:\n"
             "  a) poné YT_CLIENT_ID y YT_CLIENT_SECRET en el .env\n"
@@ -82,7 +94,7 @@ def credenciales():
     with open(CLIENT, encoding="utf-8") as f:
         c = json.load(f)
     c = c.get("installed") or c.get("web") or {}
-    return c["client_id"], c["client_secret"]
+    return c.get("client_id", ""), c.get("client_secret", "")
 
 
 def _curl(url, campos):
