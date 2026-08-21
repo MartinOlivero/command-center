@@ -148,11 +148,19 @@ Prefiero decírtelo antes de que instales:
 3. Contestá las seis preguntas. Al final el panel se abre solo.
 
 > **La primera vez el sistema va a desconfiar.** Es porque el archivo se bajó de
-> internet, no porque tenga algo raro.
-> - **macOS**: *"no se puede abrir porque es de un desarrollador no identificado"*
->   → clic derecho sobre el archivo → **Abrir** → **Abrir**.
-> - **Windows**: *"Windows protegió tu PC"* → **Más información** → **Ejecutar de
->   todas formas**.
+> internet, no porque tenga algo raro. Pasa con todo lo que no está firmado por un
+> desarrollador registrado ante Apple o Microsoft.
+>
+> **macOS** — *"Apple no ha podido verificar que no contenga software malicioso"*:
+> 1. Clic derecho sobre `Instalar.command` → **Abrir** → **Abrir**.
+> 2. Si el cartel solo te ofrece *Trasladar a la Papelera* y *Aceptar*, dale **Aceptar**
+>    y andá a **Configuración del Sistema → Privacidad y seguridad**. Abajo de todo vas
+>    a ver *"Instalar.command fue bloqueado"* → **Abrir igualmente**.
+>
+> Es una sola vez: el instalador destraba el resto de los archivos por vos.
+>
+> **Windows** — *"Windows protegió tu PC"* → **Más información** → **Ejecutar de
+> todas formas**.
 
 ### Lo que sí te va a costar
 
