@@ -170,7 +170,22 @@ def _por_cli(prompt, timeout):
     """
     extra = {}
     if os.name == "nt":
-        extra["creationflags"] = subprocess.CREATE_NO_WINDOW
+        # Una consola PROPIA pero OCULTA, y no "ninguna consola".
+        #
+        # Probado con un cliente en Windows el 21/08/2026: `claude -p` contesta al
+        # instante desde una terminal y se cuelga para siempre —sin error, sin salida—
+        # lanzado desde el panel. La diferencia entre los dos casos no es el prompt ni
+        # la version del CLI (se descarto actualizando a 2.1.238): es que el panel corre
+        # con pythonw.exe, que no tiene consola, y `claude` es Node, que si la busca.
+        #
+        # CREATE_NO_WINDOW deja al hijo sin ninguna. CREATE_NEW_CONSOLE le da una suya,
+        # y SW_HIDE hace que no se vea: tiene donde apoyarse y la persona no ve nada.
+        # La salida sigue viniendo por los pipes de capture_output, no por esa consola.
+        oculta = subprocess.STARTUPINFO()
+        oculta.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        oculta.wShowWindow = subprocess.SW_HIDE
+        extra["startupinfo"] = oculta
+        extra["creationflags"] = subprocess.CREATE_NEW_CONSOLE
     try:
         r = subprocess.run(["claude", "-p", CONSIGNA], input=prompt,
                            capture_output=True, text=True,
