@@ -631,7 +631,9 @@ def youtube(desde, hasta=None):
 # La instancia de Postiz de cada uno. Postiz es autoalojado: la URL es distinta
 # para cada instalación, así que no puede vivir en el código.
 POSTIZ = entorno.valor("POSTIZ_URL", "").rstrip("/")
-POSTIZ_TOKEN = "REDACTADO_ROTAR_ESTE_TOKEN"
+# Va en el .env, nunca en el código: es la llave del calendario de quien instala esto,
+# y el código se publica. Estuvo escrito acá adentro y viajó al repositorio.
+POSTIZ_TOKEN = entorno.valor("POSTIZ_TOKEN", "")
 
 
 def limpiar_html(crudo):
@@ -644,6 +646,13 @@ def limpiar_html(crudo):
 
 def calendario(desde, hasta):
     """Lo programado en Postiz: publicado y por publicar."""
+    # Sin URL o sin token no hay nada que pedir. Decirlo así evita el aviso críptico
+    # que salía antes —"unknown url type: '/posts?...'"— cuando faltaba la URL y la
+    # petición se armaba igual, sin servidor adelante.
+    if not POSTIZ or not POSTIZ_TOKEN:
+        if config.cargar().get("postiz", {}).get("activo"):
+            AVISOS.append("Calendario: falta POSTIZ_URL o POSTIZ_TOKEN en el .env.")
+        return []
     q = urllib.parse.urlencode({"startDate": desde.isoformat().replace("+00:00", "Z"),
                                 "endDate": hasta.isoformat().replace("+00:00", "Z")})
     try:
@@ -1574,7 +1583,7 @@ def main():
 
     # ---- INSTAGRAM ----
     if "instagram" in PEDIDAS or del_panel_anterior("instagram") is None:
-        paso(f"[1/6] Instagram ({DIAS} días)...")
+        paso(f"[1/7] Instagram ({DIAS} días)...")
         redes["instagram"] = _instagram(cred, inicio, inicio_previo, ahora)
     else:
         redes["instagram"] = del_panel_anterior("instagram")
@@ -1582,7 +1591,7 @@ def main():
 
     # ---- FACEBOOK ----
     if "facebook" in PEDIDAS or del_panel_anterior("facebook") is None:
-        paso("[2/6] Facebook...")
+        paso("[2/7] Facebook...")
         redes["facebook"] = _facebook(cred, inicio, inicio_previo, ahora)
     else:
         redes["facebook"] = del_panel_anterior("facebook")
@@ -1590,7 +1599,7 @@ def main():
 
     # ---- YOUTUBE ----
     if "youtube" in PEDIDAS or del_panel_anterior("youtube") is None:
-        paso("[3/6] YouTube...")
+        paso("[3/7] YouTube...")
         redes["youtube"] = _youtube_red(inicio, ahora)
     else:
         redes["youtube"] = del_panel_anterior("youtube")
@@ -1599,7 +1608,7 @@ def main():
     # ---- TIKTOK ----
     if config.red_activa(CFG, "tiktok"):
         if "tiktok" in PEDIDAS or del_panel_anterior("tiktok") is None:
-            paso("[7/7] TikTok...")
+            paso("[4/7] TikTok...")
             redes["tiktok"] = _tiktok_red(inicio, ahora)
         else:
             redes["tiktok"] = del_panel_anterior("tiktok")
@@ -1650,7 +1659,7 @@ def main():
     # es información para decidir, no el corazón del panel.
     comps = CFG.get("competencia") or {}
     if comps.get("instagram") or comps.get("youtube"):
-        paso("[4/6] Competencia...")
+        paso("[5/7] Competencia...")
         rivales = []
         for h in comps.get("instagram", []):
             c = competencia.instagram(get, GRAPH, cred["IG_PAGE_TOKEN"],
@@ -1682,7 +1691,7 @@ def main():
         COMPETENCIA.extend(rivales)
 
     # ---- CALENDARIO ----
-    paso("[5/6] Calendario (Postiz)...")
+    paso("[6/7] Calendario (Postiz)...")
     agenda = calendario(inicio, ahora + datetime.timedelta(days=21))
 
     # Insights y mix por red: se calculan al final, sobre los datos ya armados.
@@ -1734,7 +1743,7 @@ def main():
     if "ads" not in PEDIDAS and heredado_ads is not None:
         ads = heredado_ads
     elif cred.get("META_ADS_TOKEN"):
-        paso("[6/6] Campañas de Meta Ads...")
+        paso("[7/7] Campañas de Meta Ads...")
         try:
             # campanas.py recibe el `get` como argumento para poder probarse sin red;
             # acá le damos uno que arma la query igual que el resto del recolector.
