@@ -128,4 +128,20 @@ assert latido.get("v") == servidor.config.VERSION, \
     f"el latido dice {latido.get('v')} y la instalada es {servidor.config.VERSION}"
 assert latido.get("desfasado") is False, "sin actualizacion en curso no hay desfase"
 
+# ── un servidor que quedo viejo tiene que apartarse rapido ────────────────────
+# Si sigue vivo, el icono del Escritorio se le engancha ("ya hay un servidor, no
+# levanto otro") y devuelve la version anterior para siempre. Pasó: seis horas de
+# cerrar y reabrir contra el mismo proceso.
+assert servidor.limite_apagado() == servidor.SIN_NADIE, \
+    "sin actualizacion pendiente no hay que apurar el apagado"
+antes = os.path.getmtime(prueba)
+try:
+    os.utime(prueba, (time.time() + 5, time.time() + 5))
+    assert servidor.limite_apagado() == servidor.SIN_NADIE_VIEJO, \
+        "quedo viejo y sigue esperando los 5 minutos de siempre"
+finally:
+    os.utime(prueba, (antes, antes))
+# Y nunca por debajo del latido de la pestaña (60s), o se apagaria con alguien mirando.
+assert servidor.SIN_NADIE_VIEJO > 60, "se apagaria entre dos latidos de una pestaña abierta"
+
 print("OK — todos los checks pasaron")

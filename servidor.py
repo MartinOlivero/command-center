@@ -947,11 +947,28 @@ def marcar_actividad():
     ULTIMA_SEÑAL = time.time()
 
 
+# Cuando el panel ya se actualizó, este proceso es código viejo que ocupa el puerto: no
+# se puede reemplazar a sí mismo, y mientras siga vivo el ícono del Escritorio se le
+# engancha —"si ya hay un servidor, no levanto otro"— y devuelve la versión anterior una
+# y otra vez. Pasó de verdad el 22/08/2026: seis horas de cerrar la pestaña y reabrir
+# siempre contra el mismo proceso de las 02:38, con el disco ya en 1.1.4.
+#
+# Cerrada la pestaña, entonces, hay que irse rápido y dejarle el lugar al nuevo. Pero no
+# antes de 90s: la pestaña abierta late una vez por minuto, y un umbral más corto lo
+# apagaría en la cara de alguien que lo está mirando.
+SIN_NADIE_VIEJO = 90
+
+
+def limite_apagado():
+    """Cuánto silencio se tolera antes de apagarse. Menos, si este proceso quedó viejo."""
+    return min(SIN_NADIE, SIN_NADIE_VIEJO) if desfasado() else SIN_NADIE
+
+
 def vigilar(srv):
     """Apaga el servidor cuando nadie lo usa. Corre en su propio hilo."""
     while True:
         time.sleep(min(30, max(1, SIN_NADIE // 3)))
-        if time.time() - ULTIMA_SEÑAL > SIN_NADIE:
+        if time.time() - ULTIMA_SEÑAL > limite_apagado():
             threading.Thread(target=srv.shutdown, daemon=True).start()
             return
 

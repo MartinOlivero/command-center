@@ -1991,9 +1991,10 @@ function explicarVariacion(pct, abs, sufijo, valor) {
     const c = $('#mk-nueva');
     if (!c || c.dataset.viejo) return;      // una sola vez
     c.dataset.viejo = '1';
-    c.innerHTML = '<b>ACTUALIZACIÓN A MEDIAS</b> Los archivos del panel ya están al día, '
-      + 'pero esta ventana sigue corriendo la versión anterior. Cerrá el panel y volvé '
-      + 'a abrirlo.';
+    c.innerHTML = '<b>ACTUALIZACIÓN A MEDIAS</b> Los archivos ya están al día, pero esta '
+      + 'ventana sigue corriendo la versión anterior. Cerrá esta pestaña y esperá dos '
+      + 'minutos antes de abrir el panel de nuevo: se apaga solo, y volver antes '
+      + 'te devuelve a esta misma versión vieja.';
     c.hidden = false;
   }
   if (m.version_nueva) {
