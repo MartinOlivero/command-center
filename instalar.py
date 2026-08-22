@@ -839,31 +839,17 @@ if ! cd "{AQUI}"; then
   exit 1
 fi
 
-# El puerto no siempre es el 8760: si estaba ocupado, el servidor toma el siguiente.
-# Por eso se busca cuál responde en vez de darlo por sentado.
-buscar() {{
-  for p in $(seq 8760 8779); do
-    if curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$p/latido"; then
-      echo "$p"; return 0
-    fi
-  done
-  return 1
-}}
-
-if p=$(buscar); then
-  open "http://127.0.0.1:$p/panel.html"; exit 0   # ya estaba abierto: no levantar otro
+# Acá se buscaba a mano, con curl, el primer puerto del rango que contestara, y se
+# abría ESE. Pero en una máquina puede haber más de un panel —dos instalaciones, o el
+# de otra persona— y todos contestan igual: el 22/08/2026 el ícono abrió el panel de
+# otra cuenta, con sus datos. Ahora decide `servidor.py --fondo`, que es el único que
+# sabe cuál es el suyo: si ya está abierto abre esa pestaña, y si no, lo levanta.
+# Además vale para las dos plataformas — en Windows el acceso directo llama a
+# pythonw.exe sin script en el medio donde poner esta lógica.
+if ! python3 servidor.py --fondo >> panel.log 2>&1; then
+  osascript -e 'display alert "No pude abrir el panel" message "Mirá el archivo panel.log en la carpeta del panel."'
+  exit 1
 fi
-
-# --fondo: el servidor se desprende solo y sobrevive a que esta app termine.
-# SIN_NAVEGADOR: lo abre este script, para no terminar con dos pestañas.
-SIN_NAVEGADOR=1 python3 servidor.py --fondo >> panel.log 2>&1
-
-for i in $(seq 1 12); do
-  sleep 0.5
-  if p=$(buscar); then open "http://127.0.0.1:$p/panel.html"; exit 0; fi
-done
-
-osascript -e 'display alert "No pude abrir el panel" message "Mirá el archivo panel.log en la carpeta del panel."'
 ''')
     os.chmod(ejecutable, 0o755)  # sin esto el doble clic no hace nada
 
@@ -923,6 +909,21 @@ def _acceso_windows(escritorio):
               encoding=locale.getpreferredencoding(False)) as f:
         f.write(f'@echo off\r\ncd /d "{AQUI}"\r\ncall "Abrir panel.bat"\r\n')
     return destino
+
+
+def _rehacer_acceso():
+    """Rehace el acceso del Escritorio si ya había uno. Devuelve su nombre, o None."""
+    escritorio = os.path.join(os.path.expanduser("~"), "Desktop")
+    hay = [n for n in (f"{ACCESO}.app", f"{ACCESO}.lnk", f"{ACCESO}.bat")
+           if os.path.exists(os.path.join(escritorio, n))]
+    if not hay:
+        return None
+    try:
+        destino = (_acceso_windows(escritorio) if sys.platform == "win32"
+                   else _acceso_mac(escritorio))
+        return os.path.basename(destino) + " (acceso del Escritorio)"
+    except OSError:
+        return None                        # el panel se actualizó igual: no es fatal
 
 
 def actualizar():
@@ -993,6 +994,14 @@ def actualizar():
     if not cambiados:
         print("  Ya tenías la última versión: no cambió ningún archivo.")
         return 0
+
+    # El acceso del Escritorio NO viaja en el ZIP: se genera en la instalación y se
+    # queda con el lanzador de ese día. Si no se rehace, un arreglo del lanzador no
+    # llega nunca a quien ya lo tiene — que es justo el que lo necesita. Sólo se
+    # rehace si ya existe: si lo borraron, fue a propósito.
+    rehecho = _rehacer_acceso()
+    if rehecho:
+        cambiados.append(rehecho)
     print(f"  Actualizados {len(cambiados)} archivos:")
     for c in sorted(cambiados)[:12]:
         print(f"      {c}")

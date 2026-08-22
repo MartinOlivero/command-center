@@ -144,4 +144,25 @@ finally:
 # Y nunca por debajo del latido de la pestaña (60s), o se apagaria con alguien mirando.
 assert servidor.SIN_NADIE_VIEJO > 60, "se apagaria entre dos latidos de una pestaña abierta"
 
+# ── el icono no puede abrir el panel de otra instalacion ─────────────────────
+# Todos los paneles de la maquina contestan en el mismo rango de puertos. Antes se
+# tomaba "el primero que conteste": el 22/08/2026 el icono abrio el panel de otra
+# cuenta, con sus datos y sus metricas a la vista.
+srv, puerto = servidor.abrir_puerto(8902, 20)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+puerto_guardado, casa_guardada = servidor.PUERTO, servidor.AQUI
+try:
+    servidor.PUERTO = puerto                      # acota el barrido a este de prueba
+    assert servidor.panel_ya_abierto() == puerto, "no reconocio su propio panel"
+    ajeno = json.dumps({"v": "1.1.6", "casa": os.path.join(casa_guardada, "de-otro")})
+    assert not servidor.es_mio(ajeno.encode()), \
+        "se apropio de un panel de otra carpeta: ahi se ven los datos de otra cuenta"
+    assert servidor.es_mio(json.dumps({"casa": casa_guardada}).encode()), "no reconocio el suyo"
+    assert not servidor.es_mio(b""), "un panel viejo no dice de quien es: no se lo reclama"
+    assert not servidor.es_mio(b"no soy json"), "cualquier cosa en ese puerto no es un panel"
+finally:
+    servidor.PUERTO, servidor.AQUI = puerto_guardado, casa_guardada
+    srv.shutdown()
+    srv.server_close()
+
 print("OK — todos los checks pasaron")

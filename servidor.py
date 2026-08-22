@@ -828,7 +828,10 @@ class Manejador(http.server.SimpleHTTPRequestHandler):
             # La versión va SIEMPRE, y es el dato vivo: la que quedó grabada en
             # panel.html es de cuando se generó, y después de actualizar sigue
             # anunciando una versión nueva que ya está instalada.
-            return self.responder(200, {"v": config.VERSION,
+            # `casa` es la identidad: en una máquina puede haber más de un panel
+            # (dos instalaciones, o el de otra persona) y todos contestan en el mismo
+            # rango de puertos. Sin esto, el lanzador abre el primero que conteste.
+            return self.responder(200, {"v": config.VERSION, "casa": AQUI,
                                         "desfasado": bool(desfasado())})
 
         # panel.html no viene en el paquete: lo escribe el recolector con los datos.
@@ -1002,19 +1005,38 @@ def abrir_puerto(desde, intentos):
     return None, None
 
 
+def es_mio(cuerpo):
+    """¿Ese latido lo contestó un panel de ESTA carpeta?
+
+    Aparte para poder probarla: con el servidor de prueba en el mismo proceso, mover la
+    carpeta movía las dos puntas a la vez y el test pasaba sin comprobar nada.
+    """
+    try:
+        return json.loads(cuerpo or b"{}").get("casa") == AQUI
+    except ValueError:                     # no era JSON: no es uno de los nuestros
+        return False
+
+
 def panel_ya_abierto():
     """El puerto donde ya hay un panel de estos escuchando, o None.
 
     Evita que el segundo doble clic levante un servidor más. Se pregunta por /latido
     y no por el panel: cualquier cosa puede estar sirviendo un HTML en ese puerto,
     pero /latido lo contesta este servidor y nadie más.
+
+    Y tiene que ser un panel de ESTA carpeta. Todos escuchan en el mismo rango, así que
+    "el primero que conteste" puede ser otra instalación —pasó el 22/08/2026: el ícono
+    abrió el panel de otra cuenta, con sus datos y sus métricas—. Un panel anterior a la
+    1.1.6 no dice de quién es: no se lo puede reclamar, así que se lo deja en paz y se
+    levanta el propio en otro puerto.
     """
     import urllib.request
     for puerto in range(PUERTO, PUERTO + 20):
         try:
             with urllib.request.urlopen(
                     f"http://127.0.0.1:{puerto}/latido", timeout=1) as r:
-                if r.status == 204:
+                # 204 es como contestaba antes de la 1.1.3; sin cuerpo no hay identidad.
+                if r.status == 200 and es_mio(r.read()):
                     return puerto
         except Exception:                  # noqa: BLE001 — cerrado o ajeno: sigo
             continue
