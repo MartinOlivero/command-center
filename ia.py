@@ -252,7 +252,17 @@ def _por_cli(prompt, timeout, binario=None):
             "`npm i -g @anthropic-ai/claude-code`, o poné una ANTHROPIC_API_KEY "
             "en el .env para no depender de él.") from None
     if r.returncode != 0:
-        raise RuntimeError(f"el CLI de Claude falló: {(r.stderr or '').strip()[:300]}")
+        # El motivo puede venir por stdout y no por stderr: cuando la sesión no está
+        # iniciada, el CLI sale con código 1, stderr VACÍO y "Not logged in" en stdout.
+        # Mirando solo stderr, lo que la persona leía era "el CLI de Claude falló: " y
+        # nada más — el mensaje más inútil posible, justo en el caso más común de todos.
+        detalle = ((r.stderr or "").strip() or (r.stdout or "").strip())[:300]
+        if "not logged in" in detalle.lower() or "/login" in detalle:
+            raise RuntimeError(
+                "Claude Code está instalado pero sin la sesión iniciada. Abrí una "
+                "terminal, escribí `claude`, seguí los pasos para entrar con tu cuenta, "
+                "y volvé a probar acá.")
+        raise RuntimeError(f"el CLI de Claude falló: {detalle or 'sin decir por qué'}")
     return r.stdout.strip()
 
 
@@ -428,6 +438,34 @@ def _autochequeo():
             assert pista in str(e), f"el error no dice qué hacer: {e}"
         finally:
             subprocess.run = real
+
+    # El CLI instalado pero sin sesión: sale con código 1, stderr VACÍO y el motivo en
+    # stdout. Mirando solo stderr, el panel decía "el CLI de Claude falló: " y nada más.
+    class _Salida:
+        returncode, stderr, stdout = 1, "", "Not logged in · Please run /login\n"
+
+    subprocess.run = lambda *a, **k: _Salida()
+    try:
+        _por_cli("hola", 1)
+        raise AssertionError("tendría que haber fallado: no hay sesión iniciada")
+    except RuntimeError as e:
+        assert "sesión iniciada" in str(e), f"no explica que falta hacer login: {e}"
+        assert "terminal" in str(e), f"no dice cómo iniciarla: {e}"
+    finally:
+        subprocess.run = real
+
+    # Y un fallo sin ninguna explicación no puede quedar en un mensaje vacío.
+    class _Mudo:
+        returncode, stderr, stdout = 1, "", ""
+
+    subprocess.run = lambda *a, **k: _Mudo()
+    try:
+        _por_cli("hola", 1)
+        raise AssertionError("tendría que haber fallado")
+    except RuntimeError as e:
+        assert str(e).strip().endswith("sin decir por qué"), f"mensaje vacío: {e}"
+    finally:
+        subprocess.run = real
 
     # La dirección: por defecto Anthropic, y sin barras dobles al apuntar a otro lado.
     assert _url({}) == "https://api.anthropic.com/v1/messages"
