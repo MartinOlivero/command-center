@@ -195,7 +195,13 @@ Doble clic en el **robot del Escritorio**. El panel se abre en el navegador y el
 | Actualizar los datos | el botón ↻ arriba a la derecha |
 | Entender qué significa cada número | la pantalla **Cómo leer este panel** |
 | Ver si la conexión con Meta sigue viva | `python3 instalar.py --estado` |
-| Actualizar a la última versión | Doble clic en **`Actualizar.command`** / **`Actualizar.bat`** — reemplaza solo el código; tu `.env`, tu configuración y tu histórico quedan intactos |
+| Actualizar a la última versión | El botón **Actualizar ahora**, en el cartel de abajo a la izquierda que aparece cuando hay una. (También sigue estando el doble clic en **`Actualizar.command`** / **`Actualizar.bat`**.) Reemplaza solo el código: tu `.env`, tu configuración y tu histórico quedan intactos |
+
+> **Después de actualizar hay que cerrar el panel y volver a abrirlo**, y esperar unos
+> dos minutos antes de reabrirlo. No es un capricho: un programa no puede reemplazarse a
+> sí mismo mientras corre, así que la ventana abierta sigue con la versión anterior hasta
+> que el panel se apaga —lo hace solo— y arranca de nuevo. Si volvés antes, te reencontrás
+> con la misma versión vieja. El panel te avisa cuando está en ese estado.
 
 ---
 

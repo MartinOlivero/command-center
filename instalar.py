@@ -948,8 +948,11 @@ def _rehacer_acceso(escritorio=None):
         destino = (_acceso_windows(escritorio) if sys.platform == "win32"
                    else _acceso_mac(escritorio))
         return os.path.basename(destino) + " (acceso del Escritorio)"
-    except OSError:
-        return None                        # el panel se actualizó igual: no es fatal
+    except Exception:                      # noqa: BLE001
+        # Cualquier cosa que pase acá es cosmética: el panel YA se actualizó bien. Que
+        # un ícono que no se pudo rehacer haga fallar toda la actualización sería
+        # cambiar algo importante por algo accesorio.
+        return None
 
 
 def actualizar(escritorio=None):

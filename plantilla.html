@@ -1982,7 +1982,14 @@ function explicarVariacion(pct, abs, sufijo, valor) {
         const c = $('#mk-nueva');
         if (c && !c.dataset.viejo) c.hidden = !(m.version_nueva && masVieja(d.v, m.version_nueva));
       })
-      .catch(() => {});
+      // Si el servidor no contesta no hay dato vivo, y el cartel arrancó oculto
+      // esperándolo: sin esto, quien tiene el panel abierto con el servidor caído no se
+      // entera nunca de que hay una versión nueva. Se muestra lo grabado, que es
+      // exactamente lo que se mostraba antes de tener latido.
+      .catch(() => {
+        const c = $('#mk-nueva');
+        if (m.version_nueva && c && !c.dataset.viejo) c.hidden = false;
+      });
     latir();
     setInterval(latir, 60000);
   }
