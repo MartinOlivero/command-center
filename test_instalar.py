@@ -291,7 +291,23 @@ with zipfile.ZipFile(crudo, "w") as z:
 crudo.seek(0)
 
 instalar.urllib.request.urlopen = lambda *a, **k: io.BytesIO(crudo.getvalue())
-assert instalar.actualizar() == 0
+assert instalar.actualizar(tempfile.mkdtemp()) == 0
+
+# ── actualizar NO puede tocar el acceso de otra instalacion ──────────────────
+# Paso de verdad: estos mismos tests, corriendo actualizar() sobre una carpeta
+# temporal, reescribieron el acceso del Escritorio REAL. Quedo apuntando al tmp y sin
+# su logo. La regla es la misma que para el puerto: lo que no es mio, no se toca.
+esc = tempfile.mkdtemp()
+ajeno = os.path.join(esc, f"{instalar.ACCESO}.app", "Contents", "MacOS")
+os.makedirs(ajeno)
+with open(os.path.join(ajeno, "lanzar"), "w", encoding="utf-8") as f:
+    f.write('cd "/Users/otro/command-center-main"\n')
+antes = open(os.path.join(ajeno, "lanzar"), encoding="utf-8").read()
+assert instalar._rehacer_acceso(esc) is None, "se metio con el acceso de otra instalacion"
+assert open(os.path.join(ajeno, "lanzar"), encoding="utf-8").read() == antes, \
+    "reescribio el lanzador de otro panel"
+# Y si no hay ninguno, tampoco lo inventa: que no este puede ser una decision.
+assert instalar._rehacer_acceso(tempfile.mkdtemp()) is None, "creo un acceso que nadie pidio"
 
 assert open(os.path.join(destino, "recolector.py"), encoding="utf-8").read() == "version nueva", \
     "el codigo tiene que actualizarse"
@@ -310,7 +326,7 @@ with zipfile.ZipFile(crudo2, "w") as z:
     z.writestr(info, "#!/bin/bash\n")
 crudo2.seek(0)
 instalar.urllib.request.urlopen = lambda *a, **k: io.BytesIO(crudo2.getvalue())
-assert instalar.actualizar() == 0
+assert instalar.actualizar(tempfile.mkdtemp()) == 0
 assert os.access(os.path.join(destino, "Lanzador.command"), os.X_OK), \
     "un .command nuevo tiene que quedar ejecutable"
 
@@ -320,7 +336,7 @@ assert os.access(os.path.join(destino, "Lanzador.command"), os.X_OK), \
 os.chmod(os.path.join(destino, "Lanzador.command"), 0o644)
 crudo2.seek(0)
 instalar.urllib.request.urlopen = lambda *a, **k: io.BytesIO(crudo2.getvalue())
-assert instalar.actualizar() == 0
+assert instalar.actualizar(tempfile.mkdtemp()) == 0
 assert os.access(os.path.join(destino, "Lanzador.command"), os.X_OK), \
     "un lanzador con permisos rotos tiene que repararse aunque su contenido este bien"
 
@@ -328,7 +344,7 @@ assert os.access(os.path.join(destino, "Lanzador.command"), os.X_OK), \
 def explota(*a, **k):
     raise instalar.urllib.error.URLError("sin internet")
 instalar.urllib.request.urlopen = explota
-assert instalar.actualizar() == 1
+assert instalar.actualizar(tempfile.mkdtemp()) == 1
 assert open(os.path.join(destino, "recolector.py"), encoding="utf-8").read() == "version nueva", \
     "si falla la descarga, no se toca nada"
 

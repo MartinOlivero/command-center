@@ -911,11 +911,37 @@ def _acceso_windows(escritorio):
     return destino
 
 
-def _rehacer_acceso():
-    """Rehace el acceso del Escritorio si ya había uno. Devuelve su nombre, o None."""
-    escritorio = os.path.join(os.path.expanduser("~"), "Desktop")
+def _apunta_aca(ruta):
+    """¿Ese acceso del Escritorio es de ESTA instalación?
+
+    Un .app es una carpeta: lo que lleva la ruta adentro es su script. El .lnk de
+    Windows la guarda en UTF-16, no en UTF-8, así que se buscan las dos formas.
+    """
+    objetivo = (os.path.join(ruta, "Contents", "MacOS", "lanzar")
+                if ruta.endswith(".app") else ruta)
+    try:
+        with open(objetivo, "rb") as f:
+            crudo = f.read()
+    except OSError:
+        return False                       # no se puede saber: no se toca
+    return AQUI.encode("utf-8") in crudo or AQUI.encode("utf-16-le") in crudo
+
+
+def _rehacer_acceso(escritorio=None):
+    """Rehace el acceso del Escritorio si ya había uno DE ESTA instalación.
+
+    Las dos condiciones importan. Si no hay acceso, no se crea: que no esté puede ser
+    una decisión. Y si el que hay apunta a otra carpeta, no se toca — con dos paneles
+    instalados, actualizar uno no puede robarle el ícono al otro.
+
+    Eso último no es hipotético: el 22/08/2026 los tests de este archivo, que corren
+    `actualizar()` sobre una carpeta temporal, reescribieron el acceso de verdad. Quedó
+    apuntando a /var/folders/…/T/tmp… y sin su logo. Un test no puede salir de su caja,
+    y la forma de garantizarlo es que la función mire de quién es lo que va a pisar.
+    """
+    escritorio = escritorio or os.path.join(os.path.expanduser("~"), "Desktop")
     hay = [n for n in (f"{ACCESO}.app", f"{ACCESO}.lnk", f"{ACCESO}.bat")
-           if os.path.exists(os.path.join(escritorio, n))]
+           if _apunta_aca(os.path.join(escritorio, n))]
     if not hay:
         return None
     try:
@@ -926,7 +952,11 @@ def _rehacer_acceso():
         return None                        # el panel se actualizó igual: no es fatal
 
 
-def actualizar():
+def actualizar(escritorio=None):
+    # `escritorio` existe para los tests: sin él, probar esta función toca el Escritorio
+    # de verdad de quien corre los tests. Que la protección de `_apunta_aca` alcance no
+    # es excusa para no aislarlo — una prueba no puede depender de que el código que
+    # está probando esté bien.
     """Trae la última versión del panel sin tocar nada de la persona.
 
     Descomprimir un ZIP encima de la carpeta parece equivalente, pero no lo es: el Finder
@@ -999,7 +1029,7 @@ def actualizar():
     # queda con el lanzador de ese día. Si no se rehace, un arreglo del lanzador no
     # llega nunca a quien ya lo tiene — que es justo el que lo necesita. Sólo se
     # rehace si ya existe: si lo borraron, fue a propósito.
-    rehecho = _rehacer_acceso()
+    rehecho = _rehacer_acceso(escritorio)
     if rehecho:
         cambiados.append(rehecho)
     print(f"  Actualizados {len(cambiados)} archivos:")
