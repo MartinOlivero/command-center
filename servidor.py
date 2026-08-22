@@ -25,6 +25,7 @@ piezas se guardan en `piezas-ia/`. El panel abierto con doble click sigue
 funcionando para todo lo demas; solo el boton Generar necesita esto prendido.
 """
 import errno
+import glob
 import http.server
 import json
 import os
@@ -458,6 +459,39 @@ def reanalizar():
         _analizando.release()
 
 
+# La hora en que arrancó ESTE proceso. Con eso alcanza para saber si el panel se
+# actualizó por abajo mientras corría.
+ARRANQUE = time.time()
+
+# panel.html queda afuera a propósito: lo reescribe cada recolección, así que siempre
+# sería más nuevo y el aviso saldría siempre.
+VIGILADOS = os.path.join(AQUI, "*.py"), os.path.join(AQUI, "plantilla.html")
+
+
+def desfasado():
+    """Los archivos del panel que son más nuevos que este proceso.
+
+    Un programa no se reemplaza a sí mismo mientras corre: después de actualizar, en el
+    disco está el código nuevo y acá adentro sigue el viejo, hasta que se cierra y se
+    vuelve a abrir. También pasa si el panel arranca EN MEDIO de una actualización, que
+    es peor porque queda con una mezcla: medido el 22/08/2026, un servidor levantado a
+    las 02:38:51 con ia.py escrito a las 02:38:58 — siete segundos después.
+
+    Sin esto, cada síntoma aparece por su lado y ninguno se parece al otro: una ruta que
+    "no existe", una IA que "no está instalada" en una máquina que la tiene. Ninguno
+    dice lo único que hay que hacer.
+    """
+    nuevos = []
+    for patron in VIGILADOS:
+        for f in glob.glob(patron):
+            try:
+                if os.path.getmtime(f) > ARRANQUE:
+                    nuevos.append(os.path.basename(f))
+            except OSError:                 # se lo llevaron mientras mirábamos
+                pass
+    return sorted(nuevos)
+
+
 def actualizar_panel():
     """Trae la versión nueva del panel, sin que la persona vaya hasta la carpeta.
 
@@ -787,6 +821,11 @@ class Manejador(http.server.SimpleHTTPRequestHandler):
         # El latido de la pestaña abierta. Contesta lo más barato posible: es una vez
         # por minuto y su único trabajo es decir "todavía hay alguien mirando".
         if self.path.split("?")[0] == "/latido":
+            # Aprovecha el viaje que ya se hace igual: si el panel quedó viejo en
+            # memoria, la pestaña se entera sola en el próximo minuto en vez de
+            # descubrirlo cuando algo falla raro.
+            if desfasado():
+                return self.responder(200, {"desfasado": True})
             self.send_response(204)
             self.end_headers()
             return

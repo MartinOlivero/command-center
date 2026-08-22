@@ -91,4 +91,21 @@ assert servidor._url(r"piezas\Cafe Nandu", "a b_01.png", sep="\\") == \
 assert servidor._url("piezas/Café Ñandú", "a b_01.png", sep="/") == \
     "/piezas/Caf%C3%A9%20%C3%91and%C3%BA/a%20b_01.png", "se perdieron los acentos"
 
+# ── el panel tiene que darse cuenta de que quedo viejo en memoria ─────────────
+# Paso el 22/08/2026: el servidor arranco 02:38:51 y la actualizacion escribio ia.py
+# 02:38:58. Siete segundos, y el panel quedo con el codigo anterior sin avisar nada.
+import time
+
+assert servidor.desfasado() == [], "no hay actualizacion en curso: no puede avisar nada"
+prueba = os.path.join(servidor.AQUI, "config.py")
+antes = os.path.getmtime(prueba)
+try:
+    os.utime(prueba, (time.time() + 5, time.time() + 5))   # como si lo acabara de escribir el instalador
+    assert "config.py" in servidor.desfasado(), \
+        "un archivo mas nuevo que el proceso tiene que detectarse"
+finally:
+    os.utime(prueba, (antes, antes))
+# panel.html NO cuenta: lo reescribe cada recoleccion y el aviso saldria siempre.
+assert not any(f == "panel.html" for f in servidor.desfasado()), "panel.html no se vigila"
+
 print("OK — todos los checks pasaron")

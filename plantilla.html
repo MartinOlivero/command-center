@@ -1860,6 +1860,27 @@ const COLOR = { instagram: '#9333ea', youtube: '#e0245e', facebook: '#0891b2',
                 tiktok: '#25f4ee', linkedin: '#7c8ea0' };   // LinkedIn solo en el calendario
 const SIGLA = { instagram: 'IG', youtube: 'YT', facebook: 'FB', tiktok: 'TT', linkedin: 'LI' };
 const $ = (s) => document.querySelector(s);
+
+// Los POST del panel, con el 404 traducido.
+//
+// En estas rutas un 404 NO es "no existe": es que el panel se actualizó y el proceso
+// que sirve esta página es el de ANTES, sin la ruta nueva. Pasa siempre en la
+// actualización: el panel.html se regenera con el botón nuevo mientras el servidor
+// sigue siendo el que se levantó hace horas — un programa no se reemplaza a sí mismo
+// mientras corre. Sin esto, lo que se lee es "ruta desconocida", que no le dice a
+// nadie que lo único que falta es cerrar y volver a abrir.
+async function postPanel(ruta, cuerpo) {
+  const res = await fetch(ruta, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cuerpo || {}),
+  });
+  if (res.status === 404) {
+    throw new Error('cerrá el panel y volvé a abrirlo: está corriendo una versión vieja');
+  }
+  const r = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(r.error || `el servidor respondió ${res.status}`);
+  return r;
+}
 const n = (x) => (x ?? 0).toLocaleString('es-AR');
 const corto = (x) => x >= 1e6 ? (x / 1e6).toFixed(1) + 'M'
                    : x >= 1e4 ? Math.round(x / 1e3) + 'k' : n(x);
@@ -1932,9 +1953,26 @@ function explicarVariacion(pct, abs, sufijo, valor) {
      de enterarse de que ya nadie lo usa y apagarse en vez de quedar vivo para siempre.
      Si el panel se abrio como archivo suelto no hay servidor a quien avisarle. */
   if (location.protocol.startsWith('http')) {
-    const latir = () => fetch('/latido').catch(() => {});
+    // El latido dice "todavía hay alguien mirando" y, de paso, si el panel que está
+    // corriendo quedó viejo respecto de los archivos del disco. Eso pasa después de
+    // cada actualización —el proceso sigue con el código anterior hasta que se cierra—
+    // y sin aviso se manifiesta como fallas sueltas que no se parecen entre sí.
+    const latir = () => fetch('/latido')
+      .then(r => (r.status === 204 ? null : r.json().catch(() => null)))
+      .then(d => { if (d && d.desfasado) avisarViejo(); })
+      .catch(() => {});
     latir();
     setInterval(latir, 60000);
+  }
+
+  function avisarViejo() {
+    const c = $('#mk-nueva');
+    if (!c || c.dataset.viejo) return;      // una sola vez
+    c.dataset.viejo = '1';
+    c.innerHTML = '<b>ACTUALIZACIÓN A MEDIAS</b> Los archivos del panel ya están al día, '
+      + 'pero esta ventana sigue corriendo la versión anterior. Cerrá el panel y volvé '
+      + 'a abrirlo.';
+    c.hidden = false;
   }
   if (m.version_nueva) {
     poner('mk-nueva-num', 'v' + m.version_nueva);
@@ -1949,16 +1987,15 @@ function explicarVariacion(pct, abs, sufijo, valor) {
       bv.onclick = async () => {
         bv.disabled = true; bv.textContent = 'BAJANDO…';
         try {
-          const res = await fetch('/actualizar-panel', { method: 'POST' });
-          const r = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(r.error || `el servidor respondió ${res.status}`);
+          await postPanel('/actualizar-panel');
           // Los archivos ya están cambiados, pero este panel sigue corriendo el codigo
           // viejo: un programa no se reemplaza a si mismo mientras corre. Decirlo es
           // la unica forma de que la persona termine el trabajo.
           $('#mk-nueva').innerHTML = `<b>LISTO · v${m.version_nueva}</b>
             Cerrá el panel y volvé a abrirlo para que tome los cambios.`;
         } catch (e) {
-          bv.textContent = 'NO PUDE: ' + (e.message || '').slice(0, 60);
+          $('#mk-nueva-como').textContent = e.message || 'no pude actualizar';
+          bv.textContent = 'Reintentar';
           bv.disabled = false;
         }
       };
@@ -4323,11 +4360,7 @@ analisisIA(DATOS.ia);
           try {
             // La abre el servidor: un link file:// desde una página http:// lo
             // bloquea el navegador y no pasaría nada al hacer clic.
-            const s = await fetch('/abrir', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ carpeta: q.carpeta }),
-            });
-            if (!s.ok) throw new Error(((await s.json()) || {}).error);
+            await postPanel('/abrir', { carpeta: q.carpeta });
             ab.textContent = 'Abierta';
           } catch (e) {
             ab.textContent = e.message || 'no pude abrirla';
