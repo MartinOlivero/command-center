@@ -1869,6 +1869,16 @@ const $ = (s) => document.querySelector(s);
 // sigue siendo el que se levantó hace horas — un programa no se reemplaza a sí mismo
 // mientras corre. Sin esto, lo que se lee es "ruta desconocida", que no le dice a
 // nadie que lo único que falta es cerrar y volver a abrir.
+// ¿`a` es anterior a `b`? Compara 1.1.10 contra 1.1.9 como números y no como texto,
+// que es donde el orden alfabético se equivoca.
+function masVieja(a, b) {
+  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) < (pb[i] || 0);
+  }
+  return false;
+}
+
 async function postPanel(ruta, cuerpo) {
   const res = await fetch(ruta, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1959,7 +1969,19 @@ function explicarVariacion(pct, abs, sufijo, valor) {
     // y sin aviso se manifiesta como fallas sueltas que no se parecen entre sí.
     const latir = () => fetch('/latido')
       .then(r => (r.status === 204 ? null : r.json().catch(() => null)))
-      .then(d => { if (d && d.desfasado) avisarViejo(); })
+      .then(d => {
+        if (!d) return;
+        if (d.desfasado) return avisarViejo();
+        if (!d.v) return;
+        // La verdad sobre la versión la tiene el servidor, no este HTML: el panel.html
+        // guarda lo que era cierto cuando se generó. Sin esto, después de actualizar el
+        // cartel sigue ofreciendo una versión que ya está puesta, y sólo se calla al
+        // apretar ↻ —que es lo que reescribe el HTML—. Un cartel que pide hacer algo ya
+        // hecho enseña a ignorar los carteles.
+        poner('mk-version', 'v' + d.v);
+        const c = $('#mk-nueva');
+        if (c && !c.dataset.viejo) c.hidden = !(m.version_nueva && masVieja(d.v, m.version_nueva));
+      })
       .catch(() => {});
     latir();
     setInterval(latir, 60000);
@@ -1976,7 +1998,10 @@ function explicarVariacion(pct, abs, sufijo, valor) {
   }
   if (m.version_nueva) {
     poner('mk-nueva-num', 'v' + m.version_nueva);
-    $('#mk-nueva').hidden = false;
+    // Con servidor lo decide el latido, que llega en el mismo instante: mostrarlo ya
+    // haría aparecer y desaparecer el cartel a quien acaba de actualizar. Sin servidor
+    // (panel.html abierto a mano) no hay dato vivo y se muestra lo que quedó grabado.
+    $('#mk-nueva').hidden = location.protocol.startsWith('http');
     // El boton actualiza desde acá, pero sólo si hay servidor: abierto con doble clic
     // en panel.html (file://) no hay nadie del otro lado que pueda bajar nada, y un
     // botón que no hace nada es peor que la instrucción de ir a la carpeta.

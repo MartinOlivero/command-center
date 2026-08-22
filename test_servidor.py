@@ -31,6 +31,7 @@ tomado.close()
 
 # ── sin panel.html, la respuesta tiene que explicar que falta correr el recolector ──
 import http.client
+import json
 import os
 import threading
 
@@ -107,5 +108,24 @@ finally:
     os.utime(prueba, (antes, antes))
 # panel.html NO cuenta: lo reescribe cada recoleccion y el aviso saldria siempre.
 assert not any(f == "panel.html" for f in servidor.desfasado()), "panel.html no se vigila"
+
+# ── el latido tiene que decir que version esta corriendo ──────────────────────
+# El cartel de "hay una version nueva" vive incrustado en panel.html, o sea que es una
+# foto del momento en que se genero. Despues de actualizar seguia ofreciendo una
+# version que ya estaba puesta, y solo se callaba al apretar ↻ (que reescribe el HTML).
+# El dato vivo sale de aca.
+srv, puerto = servidor.abrir_puerto(8901, 20)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+try:
+    c = http.client.HTTPConnection("127.0.0.1", puerto, timeout=5)
+    c.request("GET", "/latido")
+    r = c.getresponse()
+    latido = json.loads(r.read())
+finally:
+    srv.shutdown()
+    srv.server_close()
+assert latido.get("v") == servidor.config.VERSION, \
+    f"el latido dice {latido.get('v')} y la instalada es {servidor.config.VERSION}"
+assert latido.get("desfasado") is False, "sin actualizacion en curso no hay desfase"
 
 print("OK — todos los checks pasaron")

@@ -818,17 +818,18 @@ class Manejador(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         marcar_actividad()
-        # El latido de la pestaña abierta. Contesta lo más barato posible: es una vez
-        # por minuto y su único trabajo es decir "todavía hay alguien mirando".
+        # El latido de la pestaña abierta: dice "todavía hay alguien mirando" y, ya que
+        # el viaje se hace igual una vez por minuto, trae de vuelta lo que el HTML no
+        # puede saber por sí solo — qué versión está instalada y corriendo ahora.
         if self.path.split("?")[0] == "/latido":
             # Aprovecha el viaje que ya se hace igual: si el panel quedó viejo en
             # memoria, la pestaña se entera sola en el próximo minuto en vez de
             # descubrirlo cuando algo falla raro.
-            if desfasado():
-                return self.responder(200, {"desfasado": True})
-            self.send_response(204)
-            self.end_headers()
-            return
+            # La versión va SIEMPRE, y es el dato vivo: la que quedó grabada en
+            # panel.html es de cuando se generó, y después de actualizar sigue
+            # anunciando una versión nueva que ya está instalada.
+            return self.responder(200, {"v": config.VERSION,
+                                        "desfasado": bool(desfasado())})
 
         # panel.html no viene en el paquete: lo escribe el recolector con los datos.
         # Si todavía no corrió, la biblioteca contesta un "404 File not found" que no
